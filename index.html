@@ -4,9 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ContentOS - Multi-Platform Video Content Engine</title>
+    <style>
+      body { margin: 0; background: #020617; color: white; font-family: system-ui, -apple-system, sans-serif; }
+      #loading { display: flex; align-items: center; justify-content: center; height: 100vh; }
+      #loading .spinner { width: 40px; height: 40px; border: 3px solid #334155; border-top-color: #06b6d4; border-radius: 50%; animation: spin 0.8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      #error-display { display: none; padding: 40px; max-width: 800px; margin: 0 auto; }
+      #error-display h2 { color: #ef4444; margin-bottom: 16px; }
+      #error-display pre { background: #1e293b; padding: 16px; border-radius: 8px; overflow: auto; color: #f87171; font-size: 14px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="loading"><div class="spinner"></div></div>
+    </div>
+    <div id="error-display">
+      <h2>⚠️ Application Error</h2>
+      <pre id="error-message"></pre>
+    </div>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e.message, e.filename, e.lineno);
+        var errDiv = document.getElementById('error-display');
+        var errMsg = document.getElementById('error-message');
+        if (errDiv && errMsg) {
+          errDiv.style.display = 'block';
+          document.getElementById('loading').style.display = 'none';
+          errMsg.textContent = e.message + '\n\nFile: ' + e.filename + '\nLine: ' + e.lineno + '\n\n' + (e.error ? e.error.stack : '');
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled rejection:', e.reason);
+        var errDiv = document.getElementById('error-display');
+        var errMsg = document.getElementById('error-message');
+        if (errDiv && errMsg) {
+          errDiv.style.display = 'block';
+          document.getElementById('loading').style.display = 'none';
+          errMsg.textContent = 'Unhandled Promise Rejection:\n\n' + (e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'Unknown');
+        }
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
