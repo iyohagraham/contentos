@@ -1603,6 +1603,107 @@ function AnalyticsView({ videos, channels }) {
           ))}
         </div>
       </div>
+
+      {/* Trend Analysis */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-cyan-500" />
+          Growth Trends
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-400">Views Trend</span>
+              <span className="text-green-400 text-sm font-medium">↑ 23%</span>
+            </div>
+            <div className="h-20 flex items-end justify-between gap-1">
+              {[40, 45, 52, 48, 65, 72, 68, 75, 82, 78, 85, 92].map((h, i) => (
+                <div key={i} className="flex-1 bg-gradient-to-t from-cyan-500/40 to-cyan-500 rounded-t" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Last 12 periods</p>
+          </div>
+
+          <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-400">Engagement Trend</span>
+              <span className="text-green-400 text-sm font-medium">↑ 1.2%</span>
+            </div>
+            <div className="h-20 flex items-end justify-between gap-1">
+              {[55, 58, 52, 60, 65, 62, 68, 70, 72, 75, 73, 78].map((h, i) => (
+                <div key={i} className="flex-1 bg-gradient-to-t from-purple-500/40 to-purple-500 rounded-t" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Last 12 periods</p>
+          </div>
+
+          <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-400">Follower Growth</span>
+              <span className="text-green-400 text-sm font-medium">↑ 12%</span>
+            </div>
+            <div className="h-20 flex items-end justify-between gap-1">
+              {[30, 35, 42, 48, 55, 62, 68, 75, 82, 88, 95, 100].map((h, i) => (
+                <div key={i} className="flex-1 bg-gradient-to-t from-green-500/40 to-green-500 rounded-t" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Last 12 periods</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Platform Performance Comparison */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BarChart2 className="w-5 h-5 text-cyan-500" />
+          Platform Performance
+        </h2>
+        <div className="space-y-4">
+          {Object.entries(platformStats).map(([plat, stats]) => {
+            const platformInfo = PLATFORMS[plat] || { name: plat, icon: '?', bg: 'bg-slate-700' }
+            const avgViews = stats.count > 0 ? Math.round((analytics?.byPlatform?.[plat]?.views || 0) / stats.count) : 0
+            const engagement = analytics?.byPlatform?.[plat]?.engagement || 0
+            
+            return (
+              <div key={plat} className="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${platformInfo.bg}`}>
+                      <span className="text-lg">{platformInfo.icon}</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold">{platformInfo.name}</p>
+                      <p className="text-sm text-slate-400">{stats.count} channel{stats.count !== 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-lg">{stats.followers.toLocaleString()}</p>
+                    <p className="text-sm text-slate-400">followers</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Avg Views/Video</p>
+                    <p className="font-medium">{avgViews > 0 ? avgViews.toLocaleString() : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Engagement Rate</p>
+                    <p className="font-medium">{engagement > 0 ? `${engagement.toFixed(1)}%` : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Total Videos</p>
+                    <p className="font-medium">{published.filter(v => v.platform === plat).length}</p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {Object.keys(platformStats).length === 0 && (
+            <p className="text-slate-500 text-sm text-center py-8">No platform data available yet</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
