@@ -90,7 +90,7 @@ function App() {
           {activeView === 'strategy' && <StrategyView createStrategy={createStrategy} />}
           {activeView === 'create' && <CreateView channels={channels} createVideo={createVideo} />}
           {activeView === 'content' && <ContentView videos={videos} updateVideo={updateVideo} removeVideo={removeVideo} />}
-          {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} />}
+          {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} updateVideo={updateVideo} />}
           {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} />}
           {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
@@ -1257,9 +1257,10 @@ function ContentView({ videos, updateVideo, removeVideo, onNavigate }) {
 }
 
 /* ─── ANALYTICS ─── */
-function CalendarView({ videos, channels }) {
+function CalendarView({ videos, channels, updateVideo }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedVideo, setSelectedVideo] = useState(null)
+  const [draggedVideo, setDraggedVideo] = useState(null)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -1285,6 +1286,25 @@ function CalendarView({ videos, channels }) {
       const date = new Date(v.postedAt)
       return date.getDate() === day
     })
+  }
+
+  const handleDragStart = (e, video) => {
+    setDraggedVideo(video)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = (e, day) => {
+    e.preventDefault()
+    if (draggedVideo && day) {
+      const newDate = new Date(year, month, day, 12, 0, 0)
+      updateVideo(draggedVideo.id, { postedAt: newDate.toISOString() })
+      setDraggedVideo(null)
+    }
   }
 
   const days = []
@@ -1326,6 +1346,8 @@ function CalendarView({ videos, channels }) {
             return (
               <div
                 key={idx}
+                onDragOver={day ? handleDragOver : undefined}
+                onDrop={day ? (e) => handleDrop(e, day) : undefined}
                 className={`min-h-[100px] rounded-lg border ${
                   day ? 'border-slate-800 hover:border-cyan-500/50' : 'border-transparent'
                 } ${isToday ? 'bg-cyan-500/10 border-cyan-500/50' : 'bg-slate-950'} p-2 transition-colors`}
@@ -1337,8 +1359,10 @@ function CalendarView({ videos, channels }) {
                       {dayVideos.map(v => (
                         <button
                           key={v.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, v)}
                           onClick={() => setSelectedVideo(v)}
-                          className={`w-full text-left text-xs px-2 py-1 rounded truncate ${
+                          className={`w-full text-left text-xs px-2 py-1 rounded truncate cursor-move ${
                             v.status === 'published'
                               ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                               : v.status === 'scheduled'
