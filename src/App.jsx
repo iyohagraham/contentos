@@ -1503,20 +1503,42 @@ function AnalyticsView({ videos, channels }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard icon={Eye} label="Total Views" value={totalViews.toLocaleString()} change="+23%" positive />
-        <StatCard icon={Users} label="Total Followers" value={totalFollowers.toLocaleString()} change="+12%" positive />
-        <StatCard icon={MousePointerClick} label="Avg. Engagement" value={`${avgEng}%`} change="+1.2%" positive />
+        <StatCard icon={Eye} label="Total Views" value={(analytics?.totalViews || totalViews).toLocaleString()} change="+23%" positive />
+        <StatCard icon={Users} label="Total Followers" value={(analytics?.totalFollowers || totalFollowers).toLocaleString()} change="+12%" positive />
+        <StatCard icon={MousePointerClick} label="Avg. Engagement" value={`${(analytics?.avgEngagement || avgEng).toFixed(1)}%`} change="+1.2%" positive />
         <StatCard icon={Clock} label="Videos Published" value={published.length.toString()} change="+8%" positive />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-cyan-500" />Views Over Time</h2>
           <div className="h-64 flex items-end justify-between gap-2">
-            {[65, 45, 78, 52, 89, 67, 92, 75, 88, 95, 82, 100].map((h, i) => (
-              <div key={i} className="flex-1 bg-gradient-to-t from-cyan-500/20 to-cyan-500 rounded-t" style={{ height: `${h}%` }} />
-            ))}
+            {(() => {
+              // Generate chart data from API or use defaults
+              const platformData = analytics?.byPlatform || {}
+              const platforms = Object.keys(platformData)
+              if (platforms.length > 0) {
+                // Create bars based on platform views
+                const maxViews = Math.max(...platforms.map(p => platformData[p].views))
+                return platforms.map((plat, i) => {
+                  const height = (platformData[plat].views / maxViews) * 100
+                  const platformInfo = PLATFORMS[plat] || { name: plat, bg: 'bg-slate-700' }
+                  return (
+                    <div key={plat} className="flex-1 flex flex-col items-center gap-2">
+                      <div className={`w-full ${platformInfo.bg} rounded-t transition-all duration-500`} style={{ height: `${height}%` }} />
+                      <span className="text-xs text-slate-400">{platformInfo.icon}</span>
+                    </div>
+                  )
+                })
+              }
+              // Fallback to default chart
+              return [65, 45, 78, 52, 89, 67, 92, 75, 88, 95, 82, 100].map((h, i) => (
+                <div key={i} className="flex-1 bg-gradient-to-t from-cyan-500/20 to-cyan-500 rounded-t" style={{ height: `${h}%` }} />
+              ))
+            })()}
           </div>
-          <div className="flex justify-between mt-2 text-xs text-slate-400"><span>Jan</span><span>Mar</span><span>Jun</span><span>Dec</span></div>
+          <div className="flex justify-between mt-2 text-xs text-slate-400">
+            {analytics?.byPlatform ? Object.keys(analytics.byPlatform).map(p => PLATFORMS[p]?.name || p) : ['Jan', 'Mar', 'Jun', 'Dec']}
+          </div>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><BarChart2 className="w-5 h-5 text-cyan-500" />Platform Breakdown</h2>
