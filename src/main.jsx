@@ -5,10 +5,11 @@ import './index.css'
 import { seedIfEmpty } from './lib/db/seed.js'
 
 // Seed demo data on first load (local mode only)
-seedIfEmpty()
+// Wrapped in try-catch to prevent blank page if seeding fails
+seedIfEmpty().catch(err => console.error('Seed failed:', err))
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
-)// deploy trigger 1782097531
+)
