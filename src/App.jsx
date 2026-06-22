@@ -1115,6 +1115,94 @@ function CreateView({ channels = [], createVideo }) {
           })}
         </div>
       </div>
+
+      {/* Composition Preview Modal */}
+      {showCompositionPreview && composition && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Film className="w-5 h-5 text-indigo-500" />
+                HyperFrames Composition Preview
+              </h2>
+              <button onClick={() => setShowCompositionPreview(false)} className="p-2 hover:bg-slate-800 rounded-lg">
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Preview iframe */}
+              <div>
+                <p className="text-sm font-semibold mb-2 text-slate-400">Live Preview</p>
+                <div className="bg-slate-950 rounded-lg border border-slate-800 overflow-hidden">
+                  <iframe
+                    srcDoc={composition.html}
+                    className="w-full h-[500px] border-0"
+                    title="Composition Preview"
+                  />
+                </div>
+              </div>
+              
+              {/* Composition details */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold mb-2 text-slate-400">Composition Info</p>
+                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Name:</span>
+                      <span className="font-medium">{composition.composition.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Duration:</span>
+                      <span className="font-medium">{composition.duration}s</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Resolution:</span>
+                      <span className="font-medium">{composition.composition.width}×{composition.composition.height}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Clips:</span>
+                      <span className="font-medium">{composition.composition.clips.length}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-semibold mb-2 text-slate-400">Timeline</p>
+                  <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 space-y-2 max-h-[300px] overflow-auto">
+                    {composition.composition.clips.map((clip, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm">
+                        <div className="w-20 text-slate-500 font-mono text-xs">
+                          {clip.start}s - {clip.start + clip.duration}s
+                        </div>
+                        <div className="flex-1 bg-slate-800 rounded px-2 py-1 truncate">
+                          {clip.content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDownloadComposition}
+                    className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download HTML
+                  </button>
+                  <button
+                    onClick={() => setShowCompositionPreview(false)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
