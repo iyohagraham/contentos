@@ -139,6 +139,80 @@ class PostizClient {
       channels: result.channels
     }
   }
+
+  /**
+   * Get analytics for a specific channel
+   * @param {string} channelId - Postiz integration ID
+   * @param {string} [period='30d'] - Time period: '7d', '30d', '90d'
+   */
+  async getChannelAnalytics(channelId, period = '30d') {
+    const result = await this._request(`/analytics/${channelId}?period=${period}`)
+    if (!result.success) return result
+
+    // Normalize analytics data
+    const data = result.data || {}
+    return {
+      success: true,
+      analytics: {
+        views: data.views || data.impressions || 0,
+        likes: data.likes || 0,
+        comments: data.comments || 0,
+        shares: data.shares || 0,
+        followers: data.followers || data.followerCount || 0,
+        engagement: data.engagement || data.engagementRate || 0,
+        period,
+        raw: data
+      }
+    }
+  }
+
+  /**
+   * Get analytics for a specific post
+   * @param {string} postId - Postiz post ID
+   */
+  async getPostAnalytics(postId) {
+    const result = await this._request(`/analytics/posts/${postId}`)
+    if (!result.success) return result
+
+    const data = result.data || {}
+    return {
+      success: true,
+      analytics: {
+        views: data.views || data.impressions || 0,
+        likes: data.likes || 0,
+        comments: data.comments || 0,
+        shares: data.shares || 0,
+        clicks: data.clicks || 0,
+        engagement: data.engagement || 0,
+        raw: data
+      }
+    }
+  }
+
+  /**
+   * Get aggregated analytics across all channels
+   * @param {string} [period='30d'] - Time period
+   */
+  async getAggregatedAnalytics(period = '30d') {
+    const result = await this._request(`/analytics?period=${period}`)
+    if (!result.success) return result
+
+    const data = result.data || {}
+    return {
+      success: true,
+      analytics: {
+        totalViews: data.totalViews || data.totalImpressions || 0,
+        totalLikes: data.totalLikes || 0,
+        totalComments: data.totalComments || 0,
+        totalShares: data.totalShares || 0,
+        totalFollowers: data.totalFollowers || 0,
+        avgEngagement: data.avgEngagement || data.averageEngagement || 0,
+        period,
+        byPlatform: data.byPlatform || {},
+        raw: data
+      }
+    }
+  }
 }
 
 export default PostizClient

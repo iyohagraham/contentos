@@ -91,7 +91,7 @@ function App() {
           {activeView === 'create' && <CreateView channels={channels} createVideo={createVideo} />}
           {activeView === 'content' && <ContentView videos={videos} updateVideo={updateVideo} removeVideo={removeVideo} />}
           {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} />}
-          {activeView === 'analytics' && <AnalyticsView videos={videos} />}
+          {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} />}
           {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
           {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
@@ -1419,18 +1419,94 @@ function CalendarView({ videos, channels }) {
 }
 
 /* ─── ANALYTICS ─── */
-function AnalyticsView({ videos }) {
+function AnalyticsView({ videos, channels }) {
+  const [analytics, setAnalytics] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState('30d')
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [period])
+
+  const fetchAnalytics = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/analytics?period=${period}`)
+      const data = await res.json()
+      if (data.success) {
+        setAnalytics(data.analytics)
+      }
+    } catch (err) {
+      console.error('Analytics fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const published = videos.filter(v => v.status === 'published')
   const totalViews = published.reduce((s, v) => s + parseInt(v.views.replace(/,/g, '')) || 0, 0)
   const avgEng = published.length > 0 ? (published.reduce((s, v) => s + parseFloat(v.engagement) || 0, 0) / published.length).toFixed(1) : 0
 
+  // Calculate platform breakdown from channels
+  const platformStats = {}
+  channels.forEach(ch => {
+    const plat = ch.platform
+    if (!platformStats[plat]) {
+      platformStats[plat] = { count: 0, followers: 0 }
+    }
+    platformStats[plat].count++
+    platformStats[plat].followers += ch.followers || 0
+  })
+
+  const totalFollowers = Object.values(platformStats).reduce((s, p) => s + p.followers, 0)
+
   return (
     <div className="space-y-6">
+      {/* Period Selector */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Analytics</h2>
+        <div className="flex gap-2">
+          {['7d', '30d', '90d'].map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                period === p ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Postiz Connection Status */}
+      {analytics?.source === 'postiz' ? (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center gap-3">
+          <Globe className="w-5 h-5 text-green-400" />
+          <div className="flex-1">
+            <p className="font-medium text-green-400">Connected to Postiz</p>
+            <p className="text-sm text-slate-400">Real-time analytics from {analytics.channels} channel(s)</p>
+          </div>
+          <button onClick={fetchAnalytics} className="p-2 hover:bg-green-500/20 rounded-lg">
+            <RefreshCw className={`w-4 h-4 text-green-400 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      ) : (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
+          <Globe className="w-5 h-5 text-slate-500" />
+          <div className="flex-1">
+            <p className="font-medium text-slate-300">Local Analytics Mode</p>
+            <p className="text-sm text-slate-500">Connect Postiz for real-time platform analytics</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard icon={Eye} label="Total Views" value={totalViews.toLocaleString()} change="+23%" positive />
-        <StatCard icon={Users} label="Avg. Engagement" value={`${avgEng}%`} change="+1.2%" positive />
-        <StatCard icon={MousePointerClick} label="Click-Through Rate" value="4.2%" change="+0.8%" positive />
-        <StatCard icon={Clock} label="Avg. Watch Time" value="42s" change="+5s" positive />
+        <StatCard icon={Users} label="Total Followers" value={totalFollowers.toLocaleString()} change="+12%" positive />
+        <StatCard icon={MousePointerClick} label="Avg. Engagement" value={`${avgEng}%`} change="+1.2%" positive />
+        <StatCard icon={Clock} label="Videos Published" value={published.length.toString()} change="+8%" positive />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
@@ -1445,12 +1521,27 @@ function AnalyticsView({ videos }) {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><BarChart2 className="w-5 h-5 text-cyan-500" />Platform Breakdown</h2>
           <div className="space-y-4">
-            {[{ p: 'TikTok', pct: 45, v: '127K', c: 'bg-black' }, { p: 'YouTube', pct: 30, v: '85K', c: 'bg-red-600' }, { p: 'Instagram', pct: 20, v: '57K', c: 'bg-gradient-to-r from-purple-500 to-orange-500' }, { p: 'Facebook', pct: 5, v: '15K', c: 'bg-blue-600' }].map(item => (
-              <div key={item.p}>
-                <div className="flex justify-between mb-1"><span className="font-medium">{item.p}</span><span className="text-slate-400">{item.v} ({item.pct}%)</span></div>
-                <div className="w-full bg-slate-800 rounded-full h-3"><div className={`${item.c} h-3 rounded-full`} style={{ width: `${item.pct}%` }} /></div>
-              </div>
-            ))}
+            {Object.entries(platformStats).map(([plat, stats]) => {
+              const pct = totalFollowers > 0 ? Math.round((stats.followers / totalFollowers) * 100) : 0
+              const platformInfo = PLATFORMS[plat] || { name: plat, icon: '?', bg: 'bg-slate-700' }
+              return (
+                <div key={plat}>
+                  <div className="flex justify-between mb-1">
+                    <span className="font-medium flex items-center gap-2">
+                      <span>{platformInfo.icon}</span>
+                      {platformInfo.name}
+                    </span>
+                    <span className="text-slate-400">{stats.followers.toLocaleString()} ({pct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-3">
+                    <div className={`${platformInfo.bg} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+            {Object.keys(platformStats).length === 0 && (
+              <p className="text-slate-500 text-sm text-center py-8">No channels connected yet</p>
+            )}
           </div>
         </div>
       </div>
