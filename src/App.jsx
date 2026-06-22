@@ -27,6 +27,7 @@ const PLATFORMS = {
 function App() {
   const [activeView, setActiveView] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Force rebuild - v2
   const dbMode = useDbMode()
 
   // Live data from store (localStorage or Supabase)
