@@ -43,6 +43,22 @@
           errMsg.textContent = 'Unhandled Promise Rejection:\n\n' + (e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'Unknown');
         }
       });
+      
+      // Check if React mounted successfully after 3 seconds
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        var loading = document.getElementById('loading');
+        if (loading && loading.offsetParent !== null) {
+          // Loading spinner is still visible, React didn't mount
+          var errDiv = document.getElementById('error-display');
+          var errMsg = document.getElementById('error-message');
+          if (errDiv && errMsg) {
+            errDiv.style.display = 'block';
+            loading.style.display = 'none';
+            errMsg.textContent = 'React application failed to mount.\n\nPossible causes:\n- JavaScript error in bundle\n- Missing dependencies\n- Environment variables not set\n\nCheck browser console for details.';
+          }
+        }
+      }, 3000);
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
