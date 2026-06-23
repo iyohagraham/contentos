@@ -217,6 +217,26 @@ CREATE POLICY "Users manage workspace products" ON products
 CREATE POLICY "Users manage workspace analytics" ON analytics_snapshots
   FOR ALL USING (workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
 
+-- video_posts and sales have RLS enabled above but need explicit policies,
+-- otherwise RLS denies ALL access to them. Scope through the owning workspace.
+CREATE POLICY "Users manage workspace video_posts" ON video_posts
+  FOR ALL USING (
+    video_id IN (
+      SELECT id FROM videos WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Users manage workspace sales" ON sales
+  FOR ALL USING (
+    product_id IN (
+      SELECT id FROM products WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE user_id = auth.uid()
+      )
+    )
+  );
+
 -- ============================================
 -- TRIGGERS (Auto-update timestamps)
 -- ============================================

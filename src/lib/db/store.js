@@ -97,7 +97,14 @@ const cloudStore = {
 
   async insert(table, data) {
     const sb = getSupabase()
-    const { data: row, error } = await sb.from(table).insert(data).select().single()
+    let payload = data
+    // Workspaces are owned by the signed-in user; RLS requires user_id to match
+    // auth.uid(). Stamp it automatically so callers don't have to.
+    if (table === 'workspaces' && !data.user_id) {
+      const { data: u } = await sb.auth.getUser()
+      if (u?.user?.id) payload = { ...data, user_id: u.user.id }
+    }
+    const { data: row, error } = await sb.from(table).insert(payload).select().single()
     if (error) throw error
     return row
   },

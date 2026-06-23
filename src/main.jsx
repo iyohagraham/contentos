@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import AuthGate from './AuthGate.jsx'
 import './index.css'
 import { seedIfEmpty } from './lib/db/seed.js'
 
@@ -41,7 +42,9 @@ function mount() {
   ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <App />
+        <AuthGate>
+          <App />
+        </AuthGate>
       </ErrorBoundary>
     </React.StrictMode>
   )

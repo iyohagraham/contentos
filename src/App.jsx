@@ -16,6 +16,7 @@ import { useChannels, useVideos, useProducts, useStrategies, useDbMode } from '.
 import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format.js'
 import { resetData } from './lib/db/seed.js'
 import { postiz } from './lib/postizClient.js'
+import { authEnabled, signOut } from './lib/auth.js'
 
 const PLATFORMS = {
   tiktok: { name: 'TikTok', icon: '♫', color: 'black', bg: 'bg-black' },
@@ -2138,6 +2139,9 @@ function SettingsView({ dbMode = 'local' }) {
         <div className="space-y-4">
           <div><label className="block text-sm font-semibold mb-2">Email</label><input type="email" className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 w-full" placeholder="your@email.com" /></div>
           <div><label className="block text-sm font-semibold mb-2">Timezone</label><select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 w-full"><option>Pacific Time (PT)</option><option>Eastern Time (ET)</option><option>UTC</option></select></div>
+          {authEnabled && (
+            <button onClick={() => signOut()} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Sign out</button>
+          )}
         </div>
       </div>
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
