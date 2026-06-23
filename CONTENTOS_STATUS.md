@@ -114,27 +114,42 @@ auth) and feature polish — not a broken deploy.
    - **Impact**: Using localStorage only (no cloud sync)
    - **Fix**: Create Supabase project, run schema.sql, add env vars
 
-### ✅ Recently Fixed (2026-06-23, pending deploy)
+### ✅ Recently Fixed (2026-06-23, ALL DEPLOYED & verified live)
 
-1. **Production Site Rendering** — RESOLVED. App mounts and renders in
-   production (verified). Was fixed by the error-boundary/async-seed/mount
-   commits prior to takeover.
-2. **Dashboard KPI totals** — FIXED. `DashboardView` was summing *pre-formatted
-   display strings* (`"12.5K"`, `"$3,915"`) instead of raw numbers, producing
-   `0`/garbage Total Followers and Total Revenue. Now aggregates the raw numeric
-   fields via `.raw`. Verified: Followers 66.6K, Revenue $11,396.
-3. **First-paint seed race** — FIXED. `main.jsx` now awaits `seedIfEmpty()`
-   before mounting, so the dashboard no longer shows empty/zero KPIs on a
-   first visit before falling into place on refresh.
-4. **Calendar drag-and-drop persistence (old Bug #3)** — FIXED. The calendar
-   bucketed videos by `new Date(v.postedAt)` where `postedAt` is a humanized
-   string (`"2 hours ago"`) → `Invalid Date`. It also wrote drops to a
-   `postedAt` field the display layer never reads. Now buckets by the raw ISO
-   date (`scheduled_time`/`published_at`) and persists drops to that same field.
+Deployed via `vercel --prod` and verified on the live site with a headless
+(CDP) render. Commits: `d76c248`, `7fc285f`, `5ea0ce9`, `8bf49f1`, `2d3054d`.
 
-   > These four are committed to the working tree but **not yet deployed** — a
-   > push to `main` (Vercel auto-deploy) or `vercel --prod` is required for
-   > production to pick them up.
+1. **Production "blank page"** — RESOLVED (was already fixed by the
+   error-boundary/async-seed/mount commits prior to takeover; docs were stale).
+2. **Dashboard KPI totals** — `DashboardView` summed *pre-formatted display
+   strings* (`"12.5K"`, `"$3,915"`) → `0`/garbage. Now sums raw numbers via
+   `.raw`. Live: Followers 66.6K, Revenue $11,396.
+3. **First-paint seed race** — `main.jsx` awaits `seedIfEmpty()` before mount.
+4. **Calendar drag-and-drop persistence (old Bug #3)** — bucketed by
+   `new Date("2 hours ago")` (Invalid Date) and wrote a field the UI ignored.
+   Now uses raw ISO `scheduled_time`/`published_at`.
+5. **Analytics latent crash + Bug #4** — `avgEng` was a string from a premature
+   `.toFixed()`, so a failed analytics fetch crashed the whole view via the
+   ErrorBoundary. Type-coerced with `Number(...)`; added a universal refresh
+   button. Verified: Analytics renders, no error boundary.
+6. **Analytics platform breakdown** — summed `ch.followers` (display string) →
+   `NaN%` / garbage follower counts. Now uses `ch.raw.followers`. Verified: no
+   NaN, followers 12,500 / 45,200 / 8,900.
+7. **Composition preview (Bug #5)** — iframe `srcDoc` (unreliable in Safari) →
+   `blob:` URL `src` + sandbox + "open in new tab" fallback.
+8. **Publish/Schedule data shape** — saved `posted_at` + singular `platform`,
+   which the display/calendar layer doesn't read. Now writes `published_at` /
+   `scheduled_time` + `target_platforms`, so published/scheduled videos show
+   their date and appear on the calendar.
+9. **MonetizeView revenue** + **ContentView search** — fixed an operator-
+   precedence reset bug and an unguarded `.toLowerCase()` crash on titleless
+   videos.
+10. **Supabase Auth scaffold** (dormant until configured) + **schema RLS gaps**
+    (`video_posts` / `sales` had RLS on with no policy = deny-all) + **`.env.example`
+    rewrite** to match the env vars the code actually reads. Auth scaffold is
+    deployed but inert until `VITE_SUPABASE_*` are set.
+11. **Security** — redacted a live `KIMI_API_KEY` committed in the handoff doc
+    (**still in git history — rotate it**).
 
 ## API Status
 

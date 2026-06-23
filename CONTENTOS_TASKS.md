@@ -458,31 +458,30 @@ fallback link. Blob URLs render consistently across browsers including Safari.
 
 ---
 
-## 🎯 NEXT ACTIONS (In Order)
+## 🎯 NEXT ACTIONS (revised 2026-06-23)
 
-1. **Fix production blank page** (Task #1)
-   - Debug React mount failure
-   - Check browser console
-   - Verify environment variables
-   - Test with minimal App.jsx
+**All known bugs (#1–#5) are fixed, deployed, and verified live.** The app is
+correct and stable in its current localStorage/demo form. What remains splits
+into (A) activations that need *your* external accounts, and (B) optional
+feature work.
 
-2. **Deploy Postiz** (Task #2)
-   - Follow RAILWAY_POSTIZ_DEPLOY.md
-   - Connect social accounts
-   - Test posting
+### A. Activations — blocked on credentials only you can create
 
-3. **Configure Supabase** (Task #3)
-   - Create project
-   - Run schema.sql
-   - Add env vars
-   - Test sync
+1. **Supabase + Auth** (code DONE, dormant — commit `7fc285f`)
+   - Create a project at supabase.com → SQL Editor → run `supabase/schema.sql`.
+   - Project Settings → API → copy **Project URL** + **anon key**.
+   - Set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in Vercel **and**
+     `.env.local`, then `vercel --prod`.
+   - On deploy, the login gate activates automatically and data scopes per-user
+     via RLS. (Anon key is safe to share — it ships in the browser bundle.)
+2. **Postiz** (code DONE) — deploy Postiz on Railway (see
+   `RAILWAY_POSTIZ_DEPLOY.md`), connect social accounts, set `POSTIZ_URL` /
+   `POSTIZ_API_KEY` in Vercel. Enables real posting + real analytics.
+3. **Real AI media** — set `FAL_AI_API_KEY` in Vercel to swap demo visuals/
+   voiceover for real FLUX + Kokoro output.
+4. **Rotate the exposed `KIMI_API_KEY`** (it was committed in git history).
 
-4. **Test end-to-end** (Task #4)
-   - Generate strategy
-   - Create video
-   - Publish to channels
-   - View in calendar
-   - Check analytics
+### B. Optional feature work (no blockers)
 
 5. **Add user authentication** (Task #5)
    - Implement Supabase Auth
