@@ -681,16 +681,17 @@ function CreateView({ channels = [], createVideo }) {
         }
       }
 
-      // Save video record to DB
+      // Save video record to DB. Use the field names the display/calendar layer
+      // reads: published_at (date) and target_platforms (array).
       if (createVideo) {
         await createVideo({
           workspace_id: 'default',
           title: topic || generatedScript?.hook || 'Untitled Video',
-          platform: channels.find(c => c.id === publishTargets[0])?.platform || 'tiktok',
+          target_platforms: publishTargets.map(id => channels.find(c => c.id === id)?.platform).filter(Boolean),
           status: 'published',
           views: 0,
           engagement: '0%',
-          posted_at: new Date().toISOString(),
+          published_at: new Date().toISOString(),
           script_content: script,
           visuals_count: visuals.length,
           has_audio: !!audio
@@ -744,16 +745,17 @@ function CreateView({ channels = [], createVideo }) {
         }
       }
 
-      // Save video record to DB with scheduled status
+      // Save video record to DB with scheduled status. scheduled_time is the
+      // field the calendar buckets by.
       if (createVideo) {
         await createVideo({
           workspace_id: 'default',
           title: topic || generatedScript?.hook || 'Untitled Video',
-          platform: channels.find(c => c.id === publishTargets[0])?.platform || 'tiktok',
+          target_platforms: publishTargets.map(id => channels.find(c => c.id === id)?.platform).filter(Boolean),
           status: 'scheduled',
           views: 0,
           engagement: '0%',
-          posted_at: scheduledTime,
+          scheduled_time: scheduledTime,
           script_content: script,
           visuals_count: visuals.length,
           has_audio: !!audio
