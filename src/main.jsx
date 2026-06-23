@@ -37,13 +37,19 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Seed demo data on first load (local mode only)
-seedIfEmpty().catch(err => console.error('Seed failed:', err))
+function mount() {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>
+  )
+}
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-)
+// Seed demo data on first load (local mode only) BEFORE mounting so the
+// first paint has data — otherwise the dashboard reads empty storage and
+// shows zero KPIs until a manual refresh. Never block mount if seeding fails.
+seedIfEmpty()
+  .catch(err => console.error('Seed failed:', err))
+  .finally(mount)

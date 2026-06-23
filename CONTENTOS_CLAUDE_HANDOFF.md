@@ -139,9 +139,11 @@ OPENAI_API_KEY=...
 ```
 
 ### Local Development
-Stored in `.env.local` (gitignored):
+Stored in `.env.local` (gitignored). **Do not paste real keys into tracked
+docs** — the previous revision committed a live `KIMI_API_KEY` here; that key
+should be rotated. Use placeholders only:
 ```bash
-KIMI_API_KEY=***REMOVED-KIMI-KEY***
+KIMI_API_KEY=<your-key>          # rotate the previously-committed key
 POSTIZ_URL=
 POSTIZ_API_KEY=
 VITE_SUPABASE_URL=

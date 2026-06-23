@@ -1,23 +1,31 @@
 # ContentOS - Current Status
 
-**Last Updated**: 2026-06-22  
+**Last Updated**: 2026-06-23  
 **Version**: 1.0.0  
 **Production URL**: https://contentos-kappa.vercel.app
 
-## Overall Status: ⚠️ PARTIALLY FUNCTIONAL
+## Overall Status: ✅ FUNCTIONAL (verified)
 
-The application is deployed and accessible, but the production site is showing a blank page. Local development works correctly.
+The application is deployed and renders correctly in production. Local
+development also works. Remaining work is integration setup (Postiz, Supabase,
+auth) and feature polish — not a broken deploy.
+
+> **2026-06-23 correction (Claude Code takeover):** The "blank page" described
+> in earlier revisions of this doc is **RESOLVED**. A headless-Chrome render of
+> the live production URL shows the full app mounting (sidebar, dashboard,
+> seeded data) with no errors. The recent error-boundary / async-seed-catch /
+> mount-detector commits fixed it. Earlier "465KB bundle" figure was also wrong
+> — the real production bundle is **252KB** (68KB gzipped).
 
 ## Deployment Status
 
 ### Production (Vercel)
 - **URL**: https://contentos-kappa.vercel.app
-- **Status**: ⚠️ BLANK PAGE
+- **Status**: ✅ RENDERS CORRECTLY (verified via headless render 2026-06-23)
 - **Last Deploy**: 2026-06-22
-- **Build**: Successful (465KB bundle)
-- **Issue**: Page loads but React app doesn't render
-- **Error Handlers**: Added ErrorBoundary + global error handlers, but no errors displayed
-- **Next**: Need to debug why React isn't mounting
+- **Build**: Successful (252KB JS / 26KB CSS, 68KB gzipped)
+- **Note**: `dist/` is gitignored; Vercel rebuilds from source on every deploy,
+  so any stale local `dist/` is irrelevant to production.
 
 ### Local Development
 - **Frontend**: http://localhost:5173 ✅ WORKING
@@ -106,21 +114,27 @@ The application is deployed and accessible, but the production site is showing a
    - **Impact**: Using localStorage only (no cloud sync)
    - **Fix**: Create Supabase project, run schema.sql, add env vars
 
-### ❌ Not Working
+### ✅ Recently Fixed (2026-06-23, pending deploy)
 
-1. **Production Site Rendering**
-   - **Symptom**: Blank page on https://contentos-kappa.vercel.app
-   - **Error Handlers**: Added but no errors shown
-   - **Possible Causes**:
-     - JS bundle fails to parse
-     - React mount fails silently
-     - Environment variable issue
-     - Vercel build cache issue
-   - **Debug Steps Needed**:
-     - Check browser console on production
-     - Verify all imports resolve
-     - Test with minimal App.jsx
-     - Clear Vercel build cache
+1. **Production Site Rendering** — RESOLVED. App mounts and renders in
+   production (verified). Was fixed by the error-boundary/async-seed/mount
+   commits prior to takeover.
+2. **Dashboard KPI totals** — FIXED. `DashboardView` was summing *pre-formatted
+   display strings* (`"12.5K"`, `"$3,915"`) instead of raw numbers, producing
+   `0`/garbage Total Followers and Total Revenue. Now aggregates the raw numeric
+   fields via `.raw`. Verified: Followers 66.6K, Revenue $11,396.
+3. **First-paint seed race** — FIXED. `main.jsx` now awaits `seedIfEmpty()`
+   before mounting, so the dashboard no longer shows empty/zero KPIs on a
+   first visit before falling into place on refresh.
+4. **Calendar drag-and-drop persistence (old Bug #3)** — FIXED. The calendar
+   bucketed videos by `new Date(v.postedAt)` where `postedAt` is a humanized
+   string (`"2 hours ago"`) → `Invalid Date`. It also wrote drops to a
+   `postedAt` field the display layer never reads. Now buckets by the raw ISO
+   date (`scheduled_time`/`published_at`) and persists drops to that same field.
+
+   > These four are committed to the working tree but **not yet deployed** — a
+   > push to `main` (Vercel auto-deploy) or `vercel --prod` is required for
+   > production to pick them up.
 
 ## API Status
 

@@ -136,10 +136,10 @@ function QuickActionCard({ icon: Icon, title, description, onClick }) {
 
 /* ─── DASHBOARD ─── */
 function DashboardView({ channels, videos, products, onNavigate }) {
-  // Calculate real stats from data
-  const totalFollowers = channels.reduce((sum, ch) => sum + (ch.followers || 0), 0)
-  const totalViews = videos.reduce((sum, v) => sum + (parseInt(v.views?.replace(/,/g, '')) || 0), 0)
-  const totalRevenue = products.reduce((sum, p) => sum + (p.revenue || 0), 0)
+  // Calculate real stats from RAW numeric values (display fields are pre-formatted strings)
+  const totalFollowers = channels.reduce((sum, ch) => sum + (Number(ch.raw?.followers) || 0), 0)
+  const totalViews = videos.reduce((sum, v) => sum + (Number(v.raw?.views) || 0), 0)
+  const totalRevenue = products.reduce((sum, p) => sum + (Number(p.raw?.total_revenue) || 0), 0)
   
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
@@ -1277,17 +1277,26 @@ function CalendarView({ videos, channels, updateVideo }) {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
 
+  // Effective scheduling date comes from the RAW row. The display `postedAt`
+  // is a humanized string ("2 hours ago", "In 24h") that cannot be re-parsed
+  // into a Date, so calendar bucketing must read the underlying ISO fields.
+  const effectiveDate = (v) => {
+    const iso = v.raw?.scheduled_time || v.raw?.published_at || null
+    if (!iso) return null
+    const d = new Date(iso)
+    return isNaN(d.getTime()) ? null : d
+  }
+
   // Filter videos by month
   const monthVideos = videos.filter(v => {
-    if (!v.postedAt) return false
-    const date = new Date(v.postedAt)
-    return date.getFullYear() === year && date.getMonth() === month
+    const date = effectiveDate(v)
+    return date && date.getFullYear() === year && date.getMonth() === month
   })
 
   const getVideosForDay = (day) => {
     return monthVideos.filter(v => {
-      const date = new Date(v.postedAt)
-      return date.getDate() === day
+      const date = effectiveDate(v)
+      return date && date.getDate() === day
     })
   }
 
@@ -1305,7 +1314,11 @@ function CalendarView({ videos, channels, updateVideo }) {
     e.preventDefault()
     if (draggedVideo && day) {
       const newDate = new Date(year, month, day, 12, 0, 0)
-      updateVideo(draggedVideo.id, { postedAt: newDate.toISOString() })
+      // Persist to the raw ISO field the display layer actually reads, so the
+      // move survives reloads. Published videos keep their published_at date;
+      // everything else is treated as scheduled.
+      const field = draggedVideo.raw?.published_at ? 'published_at' : 'scheduled_time'
+      updateVideo(draggedVideo.id, { [field]: newDate.toISOString() })
       setDraggedVideo(null)
     }
   }
@@ -1498,7 +1511,7 @@ function CalendarView({ videos, channels, updateVideo }) {
                                     </div>
                                     <div>
                                       <p className="text-slate-500">Posted</p>
-                                      <p className="text-white text-[10px]">{new Date(v.postedAt).toLocaleDateString()}</p>
+                                      <p className="text-white text-[10px]">{effectiveDate(v)?.toLocaleDateString() || v.postedAt}</p>
                                     </div>
                                   </div>
                                 </div>

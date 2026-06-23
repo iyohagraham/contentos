@@ -8,7 +8,18 @@
 
 ## 🔴 CRITICAL TASKS (Fix Immediately)
 
-### 1. Fix Production Blank Page
+### 1. Fix Production Blank Page — ✅ RESOLVED (2026-06-23)
+**Priority**: ~~CRITICAL~~ DONE
+**Status**: Verified rendering in production via headless render. The
+error-boundary / async-seed-catch / mount-detector commits fixed the mount
+failure. While confirming, three related data bugs were also fixed (dashboard
+KPI string-vs-number aggregation, first-paint seed race, and the calendar
+drag-drop persistence bug #3). See CONTENTOS_STATUS.md "Recently Fixed".
+**Remaining action**: deploy current working tree (push to `main` or
+`vercel --prod`) so production picks up the KPI/calendar fixes.
+
+<details><summary>Original (stale) task description</summary>
+
 **Priority**: CRITICAL  
 **Status**: Blocked - Need debugging  
 **Impact**: Production site (https://contentos-kappa.vercel.app) is completely unusable
@@ -43,6 +54,8 @@
 - Clear Vercel build cache and redeploy
 
 **Estimated Time**: 1-2 hours
+
+</details>
 
 ---
 
@@ -349,12 +362,15 @@ Open-source social media scheduler that handles OAuth for all platforms. We've b
 **Description**: ErrorBoundary added but no errors shown on production  
 **Impact**: Hard to debug production issues
 
-### Bug #3: Calendar Drag-and-Drop Not Persisting
+### Bug #3: Calendar Drag-and-Drop Not Persisting — ✅ FIXED (2026-06-23)
 **Severity**: MEDIUM  
-**Status**: Not fixed  
-**Description**: Dragging videos in calendar works visually but doesn't save  
-**Impact**: User thinks they rescheduled but it didn't save  
-**Fix**: Update video's posted_at when dropped
+**Status**: Fixed (pending deploy)  
+**Root cause**: Calendar bucketed videos by `new Date(v.postedAt)`, but
+`postedAt` is a humanized display string (`"2 hours ago"`) → `Invalid Date`.
+Drops also wrote a `postedAt` field the display layer never reads (it derives
+from `published_at`/`scheduled_time`).  
+**Fix**: Bucket by the raw ISO date and persist drops to `scheduled_time`
+(or `published_at` for published videos). See `CalendarView` in `src/App.jsx`.
 
 ### Bug #4: Analytics Not Updating After Post
 **Severity**: MEDIUM  
