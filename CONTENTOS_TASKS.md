@@ -372,19 +372,24 @@ from `published_at`/`scheduled_time`).
 **Fix**: Bucket by the raw ISO date and persist drops to `scheduled_time`
 (or `published_at` for published videos). See `CalendarView` in `src/App.jsx`.
 
-### Bug #4: Analytics Not Updating After Post
+### Bug #4: Analytics Not Updating After Post — ✅ FIXED (2026-06-23)
 **Severity**: MEDIUM  
-**Status**: Not fixed  
-**Description**: Analytics don't refresh after posting  
-**Impact**: Users see stale data  
-**Fix**: Add refresh button, auto-refresh after post
+**Status**: Fixed (pending deploy)  
+**Fix**: Added a universal refresh button to the Analytics header (previously a
+refresh control existed only in the Postiz-connected branch). The view already
+refetches on mount/period change. Also hardened the stat math: `avgEng` was a
+string from a premature `.toFixed()`, so when the analytics fetch failed and
+`analytics` was null, `"0.0".toFixed(1)` threw and crashed the whole view via
+the ErrorBoundary — now type-coerced with `Number(...)`. Verified via CDP that
+Analytics renders with no error boundary.
 
-### Bug #5: Composition Preview Not Working in Some Browsers
+### Bug #5: Composition Preview Not Working in Some Browsers — ✅ FIXED (2026-06-23)
 **Severity**: LOW  
-**Status**: Not fixed  
-**Description**: iframe preview doesn't render in Safari  
-**Impact**: Safari users can't preview compositions  
-**Fix**: Add fallback rendering method
+**Status**: Fixed (pending deploy)  
+**Fix**: The preview iframe used `srcDoc`, which Safari renders unreliably for
+large documents. Switched to a `blob:` URL `src` (with `sandbox`) generated via
+`URL.createObjectURL` and revoked on cleanup, plus an "Open preview in new tab"
+fallback link. Blob URLs render consistently across browsers including Safari.
 
 ---
 

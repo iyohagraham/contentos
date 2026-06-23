@@ -447,6 +447,17 @@ function CreateView({ channels = [], createVideo }) {
   const [composition, setComposition] = useState(null)
   const [showCompositionPreview, setShowCompositionPreview] = useState(false)
   const [isGeneratingComposition, setIsGeneratingComposition] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  // Render the composition via a Blob URL rather than iframe srcDoc. Safari does
+  // not reliably render large srcDoc documents (Bug #5); a blob: URL does, and
+  // it also gives us an "open in new tab" fallback.
+  useEffect(() => {
+    if (!composition?.html) { setPreviewUrl(null); return }
+    const url = URL.createObjectURL(new Blob([composition.html], { type: 'text/html' }))
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [composition])
 
   const handleGenerateScript = async () => {
     if (!topic.trim()) {
@@ -1137,11 +1148,22 @@ function CreateView({ channels = [], createVideo }) {
                 <p className="text-sm font-semibold mb-2 text-slate-400">Live Preview</p>
                 <div className="bg-slate-950 rounded-lg border border-slate-800 overflow-hidden">
                   <iframe
-                    srcDoc={composition.html}
+                    src={previewUrl || undefined}
+                    sandbox="allow-scripts allow-same-origin"
                     className="w-full h-[500px] border-0"
                     title="Composition Preview"
                   />
                 </div>
+                {previewUrl && (
+                  <a
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-xs text-slate-400 hover:text-cyan-400 transition-colors"
+                  >
+                    <ArrowUpRight className="w-3 h-3" />Open preview in new tab
+                  </a>
+                )}
               </div>
               
               {/* Composition details */}
@@ -1616,8 +1638,11 @@ function AnalyticsView({ videos, channels }) {
   }
 
   const published = videos.filter(v => v.status === 'published')
-  const totalViews = published.reduce((s, v) => s + parseInt(v.views.replace(/,/g, '')) || 0, 0)
-  const avgEng = published.length > 0 ? (published.reduce((s, v) => s + parseFloat(v.engagement) || 0, 0) / published.length).toFixed(1) : 0
+  const totalViews = published.reduce((s, v) => s + (parseInt(String(v.views).replace(/,/g, '')) || 0), 0)
+  // Keep this a NUMBER (no premature toFixed) so render-time .toFixed() is safe.
+  const avgEng = published.length > 0
+    ? published.reduce((s, v) => s + (parseFloat(v.engagement) || 0), 0) / published.length
+    : 0
 
   // Calculate platform breakdown from channels
   const platformStats = {}
@@ -1637,7 +1662,7 @@ function AnalyticsView({ videos, channels }) {
       {/* Period Selector */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Analytics</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {['7d', '30d', '90d'].map(p => (
             <button
               key={p}
@@ -1649,6 +1674,13 @@ function AnalyticsView({ videos, channels }) {
               {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '90 Days'}
             </button>
           ))}
+          <button
+            onClick={fetchAnalytics}
+            title="Refresh analytics"
+            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
@@ -1675,9 +1707,9 @@ function AnalyticsView({ videos, channels }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard icon={Eye} label="Total Views" value={(analytics?.totalViews || totalViews).toLocaleString()} change="+23%" positive />
-        <StatCard icon={Users} label="Total Followers" value={(analytics?.totalFollowers || totalFollowers).toLocaleString()} change="+12%" positive />
-        <StatCard icon={MousePointerClick} label="Avg. Engagement" value={`${(analytics?.avgEngagement || avgEng).toFixed(1)}%`} change="+1.2%" positive />
+        <StatCard icon={Eye} label="Total Views" value={Number(analytics?.totalViews ?? totalViews).toLocaleString()} change="+23%" positive />
+        <StatCard icon={Users} label="Total Followers" value={Number(analytics?.totalFollowers ?? totalFollowers).toLocaleString()} change="+12%" positive />
+        <StatCard icon={MousePointerClick} label="Avg. Engagement" value={`${Number(analytics?.avgEngagement ?? avgEng).toFixed(1)}%`} change="+1.2%" positive />
         <StatCard icon={Clock} label="Videos Published" value={published.length.toString()} change="+8%" positive />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
