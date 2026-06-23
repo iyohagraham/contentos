@@ -1234,7 +1234,7 @@ function CreateView({ channels = [], createVideo }) {
 function ContentView({ videos, updateVideo, removeVideo, onNavigate }) {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const filtered = videos.filter(v => (filter === 'all' || v.status === filter) && v.title.toLowerCase().includes(search.toLowerCase()))
+  const filtered = videos.filter(v => (filter === 'all' || v.status === filter) && (v.title || '').toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="space-y-6">
@@ -1652,7 +1652,8 @@ function AnalyticsView({ videos, channels }) {
       platformStats[plat] = { count: 0, followers: 0 }
     }
     platformStats[plat].count++
-    platformStats[plat].followers += ch.followers || 0
+    // ch.followers is a formatted display string ("12.5K"); sum the raw number.
+    platformStats[plat].followers += Number(ch.raw?.followers) || 0
   })
 
   const totalFollowers = Object.values(platformStats).reduce((s, p) => s + p.followers, 0)
@@ -1890,7 +1891,7 @@ function AnalyticsView({ videos, channels }) {
 
 /* ─── MONETIZE ─── */
 function MonetizeView({ products, videos }) {
-  const totalRev = products.reduce((s, p) => s + parseFloat(p.revenue.replace(/[$,]/g, '')) || 0, 0)
+  const totalRev = products.reduce((s, p) => s + (parseFloat(String(p.revenue).replace(/[$,]/g, '')) || 0), 0)
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
