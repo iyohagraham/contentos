@@ -1,14 +1,14 @@
-import { hasValidKey, kimiChat, parseJSON } from './_kimi.js'
-
 /**
- * Generate viral video ideas using Kimi k2.7.
+ * POST /api/generate-ideas
+ * Generate viral video ideas with RAG-enhanced context.
  */
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+import { textChat, parseJSON, hasTextProvider } from './_providers/text.js'
+import { buildRAGContext } from './knowledge/rag.js'
 
-  const { niche, count = 10 } = req.body
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  const { niche, count = 10, workspace_id } = req.body
 
   const demoIdeas = [
     { title: 'The mistake 90% of beginners make', type: 'educational', description: 'Show common mistake + correct way', visual: 'Split screen before/after' },
@@ -23,24 +23,28 @@ export default async function handler(req, res) {
     { title: 'Save this for later!', type: 'educational', description: 'Checklist or tutorial', visual: 'Numbered list on screen' }
   ]
 
-  if (!hasValidKey()) {
+  if (!hasTextProvider()) {
     return res.status(200).json({ success: true, ideas: demoIdeas.slice(0, count), demo: true, message: 'Demo mode: add KIMI_API_KEY for AI generation.' })
   }
 
+  const ragContext = workspace_id
+    ? await buildRAGContext(workspace_id, `viral video ideas content topics ${niche || ''}`)
+    : ''
+
+  const systemPrompt = `You are a viral content strategist. Output ONLY valid JSON, no markdown.
+${ragContext}`
+
   const userPrompt = `Generate ${count} viral short-form video ideas for the "${niche || 'general'}" niche.
-Each idea needs a 3-second hook. Mix educational, relatable, engagement, and conversion types.
-Output ONLY valid JSON: {"ideas":[{"title":"...","type":"educational|relatable|engagement|conversion","description":"...","visual":"..."}]}`
+Each idea needs a 3-second hook. Mix educational (40%), relatable (25%), engagement (20%), conversion (15%) types.
+Include opportunity_score (0-1) for each idea based on viral potential.
+Output JSON: {"ideas":[{"title":"...","type":"educational|relatable|engagement|conversion","description":"...","visual":"...","opportunity_score":0.8,"hook":"first 3 seconds"}]}`
 
   try {
-    const content = await kimiChat([
-      { role: 'system', content: 'You are a viral content strategist. Output ONLY valid JSON, no markdown.' },
-      { role: 'user', content: userPrompt }
-    ], { maxTokens: 2000 })
-
+    const { content } = await textChat([{ role: 'user', content: userPrompt }], { systemPrompt, maxTokens: 2000 })
     const result = parseJSON(content)
-    res.status(200).json({ success: true, ideas: result.ideas || result, provider: 'Kimi k2.7' })
+    return res.status(200).json({ success: true, ideas: result.ideas || result })
   } catch (error) {
-    console.error('Kimi ideas error:', error.message)
-    res.status(200).json({ success: true, ideas: demoIdeas.slice(0, count), demo: true, message: `AI error (using demo): ${error.message}` })
+    console.error('[generate-ideas]', error.message)
+    return res.status(200).json({ success: true, ideas: demoIdeas.slice(0, count), demo: true, message: `AI error: ${error.message}` })
   }
 }

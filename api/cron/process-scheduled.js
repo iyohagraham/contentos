@@ -1,14 +1,11 @@
 /**
- * Vercel Cron job - processes scheduled posts that are due.
- * Configured in vercel.json to run every 5 minutes.
- *
- * Reads due posts from the `videos` table (status='scheduled',
- * scheduled_time <= now), publishes them via the social manager,
- * and updates their status.
+ * Cron — process scheduled posts due for publishing.
+ * Runs every 5 minutes via vercel.json cron.
+ * Uses PostizClient (server-side proxy) — not the dead direct-connector.
  */
 
 import { createClient } from '@supabase/supabase-js'
-import socialMediaManager from '../../src/lib/social/manager.js'
+import postiz from '../../src/lib/postizClient.js'
 
 export default async function handler(req, res) {
   // Protect the cron endpoint with a secret
@@ -46,11 +43,18 @@ export default async function handler(req, res) {
       const platforms = video.target_platforms || []
 
       try {
-        const result = await socialMediaManager.postToMultiple(
-          platforms,
-          video.video_url,
-          { caption: video.title }
-        )
+        const channelsRes = await postiz.channels()
+        const channelIds = (channelsRes.channels || [])
+          .filter(ch => platforms.includes((ch.type || '').toLowerCase()))
+          .map(ch => ch.id)
+
+        const result = await postiz.post({
+          channelIds,
+          content: video.title,
+          mediaUrls: video.video_url ? [video.video_url] : [],
+          scheduledTime: null
+        })
+        result.success = result.success !== false
 
         await supabase
           .from('videos')
@@ -60,7 +64,7 @@ export default async function handler(req, res) {
           })
           .eq('id', video.id)
 
-        results.push({ id: video.id, title: video.title, success: result.success })
+        results.push({ id: video.id, title: video.title, success: result.success, postizResult: result })
       } catch (postError) {
         await supabase.from('videos').update({ status: 'failed' }).eq('id', video.id)
         results.push({ id: video.id, title: video.title, success: false, error: postError.message })

@@ -1,8 +1,10 @@
-import { hasValidKey, kimiChat, parseJSON } from './_kimi.js'
-
 /**
- * Generate a complete channel monetization strategy using Kimi k2.7.
+ * POST /api/generate-strategy
+ * Generate a brand strategy with RAG-enhanced context.
+ * Delegates to Strategy Agent when workspace_id provided; falls back to direct generation.
  */
+import { textChat, parseJSON, hasTextProvider } from './_providers/text.js'
+import { buildRAGContext } from './knowledge/rag.js'
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -43,9 +45,15 @@ export default async function handler(req, res) {
     }
   }
 
-  if (!hasValidKey()) {
+  const { workspace_id } = req.body
+
+  if (!hasTextProvider()) {
     return res.status(200).json({ success: true, strategy: demoStrategy, demo: true, message: 'Demo mode: add KIMI_API_KEY for AI generation.' })
   }
+
+  const ragContext = workspace_id
+    ? await buildRAGContext(workspace_id, `content strategy monetization ${niche || ''} ${audience || ''}`)
+    : ''
 
   const userPrompt = `Create a complete monetization strategy for a faceless short-form video channel.
 Niche: ${niche || 'general content'}
@@ -61,16 +69,15 @@ Output ONLY valid JSON matching this exact shape:
   "product": {"name":"...","price":"...","format":"...","description":"...","funnel":{"top":"...","middle":"...","bottom":"..."}}
 }`
 
-  try {
-    const content = await kimiChat([
-      { role: 'system', content: 'You are an expert social media monetization strategist. Output ONLY valid JSON, no markdown.' },
-      { role: 'user', content: userPrompt }
-    ], { maxTokens: 1500 })
+  const systemPrompt = `You are an expert social media monetization strategist. Output ONLY valid JSON, no markdown.
+${ragContext}`
 
+  try {
+    const { content } = await textChat([{ role: 'user', content: userPrompt }], { systemPrompt, maxTokens: 1500 })
     const strategy = parseJSON(content)
-    res.status(200).json({ success: true, strategy, provider: 'Kimi k2.7' })
+    return res.status(200).json({ success: true, strategy })
   } catch (error) {
-    console.error('Kimi strategy error:', error.message)
-    res.status(200).json({ success: true, strategy: demoStrategy, demo: true, message: `AI error (using demo): ${error.message}` })
+    console.error('[generate-strategy]', error.message)
+    return res.status(200).json({ success: true, strategy: demoStrategy, demo: true, message: `AI error: ${error.message}` })
   }
 }

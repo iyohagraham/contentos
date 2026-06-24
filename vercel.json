@@ -10,13 +10,34 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 30
+      "maxDuration": 60
+    },
+    "api/production/*.js": {
+      "maxDuration": 300
+    },
+    "api/agents/*.js": {
+      "maxDuration": 120
+    },
+    "api/knowledge/*.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
     {
       "path": "/api/cron/process-scheduled",
-      "schedule": "0 9 * * *"
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/run-agents",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/research-scan",
+      "schedule": "0 8 * * 0"
+    },
+    {
+      "path": "/api/cron/learning-loop",
+      "schedule": "0 22 * * 0"
     }
   ]
 }
