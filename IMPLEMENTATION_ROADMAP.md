@@ -197,15 +197,19 @@ Phase 0 (Bug-fixes + Auth scaffold) is COMPLETE. Phase 1 (Foundation Infrastruct
 
 ---
 
-## Phase 10 — Autonomous Brand Mode [PLANNED]
+## Phase 10 — Autonomous Brand Mode [IN PROGRESS]
 **Goal:** Operator sets brief once. System runs the brand indefinitely.
-**Exit criteria:** 30-day autonomous run on test workspace with zero human input. Learning loop improves content quality measurably over time.
+**Exit criteria:** 30-day autonomous run on test workspace with zero human input.
 
-- [ ] Workspace operating mode selector (Creator / Project / Brand)
-- [ ] Brand brief wizard
-- [ ] Autonomous loop monitoring dashboard
-- [ ] Human approval gate configurator (what triggers notification)
+- [x] Workspace operating mode selector (Creator / Project / Brand) — WorkspaceConfigView
+- [x] Brand brief form (niche, tone, audience, unique angle) — WorkspaceConfigView
+- [x] Review gate configurator (scripts / media / publish toggles) — WorkspaceConfigView
+- [x] Real workspace_id resolution from Supabase auth — useWorkspace hook
+- [x] Autonomous loop closed: Planning → Writing → Media → Publishing → Analytics → Optimization
+- [ ] Autonomous loop monitoring dashboard (job queue status + agent run history)
+- [ ] Notification Agent (alert on failures, weekly digest, approval requests)
 - [ ] 30-day brand health report
+- [ ] Brand Mode test run (needs Supabase + Postiz live)
 
 ---
 
