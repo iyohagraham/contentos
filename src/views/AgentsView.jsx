@@ -12,6 +12,7 @@ const AGENTS = [
   { id: 'writing', label: 'Writing Agent', icon: PenTool, color: 'text-green-400', desc: 'Write a complete script with RAG-enhanced knowledge and playbooks', inputs: [{ key: 'video_id', type: 'text', label: 'Video ID (from Content view)' }, { key: 'title', type: 'text', label: 'Or enter title directly' }, { key: 'topic', type: 'text', label: 'Topic / angle' }] },
   { id: 'media', label: 'Media Agent', icon: Film, color: 'text-pink-400', desc: 'Generate FLUX scene images + Qwen-TTS voice narration. Optionally add Wan 2.7 motion.', inputs: [{ key: 'video_id', type: 'text', label: 'Video ID (must have script)' }, { key: 'mode', type: 'select', options: ['images', 'motion_test', 'full'], label: 'Mode', default: 'images' }] },
   { id: 'analytics', label: 'Analytics Agent', icon: BarChart3, color: 'text-amber-400', desc: 'Sync post performance metrics and channel snapshots', inputs: [{ key: 'lookback_days', type: 'number', label: 'Lookback Days', default: 30 }] },
+  { id: 'publishing', label: 'Publishing Agent', icon: Send, color: 'text-violet-400', desc: 'Distribute ready videos to configured Postiz channels', inputs: [{ key: 'video_id', type: 'text', label: 'Video ID (optional — blank = scan scheduled)' }, { key: 'batch_size', type: 'number', label: 'Batch Size', default: 10 }] },
   { id: 'optimization', label: 'Optimization Agent', icon: TrendingUp, color: 'text-orange-400', desc: 'Run the learning loop — analyze patterns, update strategy weights', inputs: [] }
 ]
 
@@ -203,6 +204,41 @@ function ResultDisplay({ agentId, result }) {
           </div>
         ))}
         {result.calendar_items?.length > 5 && <p className="text-xs text-slate-500">+{result.calendar_items.length - 5} more</p>}
+      </div>
+    )
+  }
+
+  if (agentId === 'publishing') {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Published</p>
+            <p className="font-bold text-green-400">{result.published}</p>
+          </div>
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Skipped</p>
+            <p className="font-bold text-amber-400">{result.skipped}</p>
+          </div>
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Errors</p>
+            <p className="font-bold text-red-400">{result.errors}</p>
+          </div>
+        </div>
+        {!result.postiz_configured && (
+          <p className="text-xs text-amber-400 bg-amber-900/20 border border-amber-700/40 rounded p-2">
+            Postiz not configured — set POSTIZ_URL + POSTIZ_API_KEY in Vercel environment.
+          </p>
+        )}
+        {result.detail?.published?.map((p, i) => (
+          <div key={i} className="bg-slate-950 rounded p-2 border border-slate-800 text-xs flex items-center justify-between">
+            <span className="text-slate-300 truncate">{p.title}</span>
+            <span className="text-green-400 ml-2 flex-shrink-0">{p.channels} channel{p.channels !== 1 ? 's' : ''}</span>
+          </div>
+        ))}
+        {result.detail?.errors?.map((e, i) => (
+          <div key={i} className="bg-red-900/20 border border-red-700/40 rounded p-2 text-xs text-red-400">{e.error}</div>
+        ))}
       </div>
     )
   }

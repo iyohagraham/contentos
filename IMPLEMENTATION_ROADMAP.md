@@ -153,14 +153,15 @@ Phase 0 (Bug-fixes + Auth scaffold) is COMPLETE. Phase 1 (Foundation Infrastruct
 
 ---
 
-## Phase 7 — Publishing [PLANNED]
+## Phase 7 — Publishing [✅ COMPLETE]
 **Goal:** Content distributes to configured platforms on schedule, automatically.
-**Exit criteria:** Scheduled posts publish automatically. Postiz integration live. Multi-platform delivery working.
+**Commits:** (this session)
 
-- [ ] Fix cron endpoint (P1.4 above)
-- [ ] `api/publish/schedule.js` — schedule a post
-- [ ] `api/publish/distribute.js` — multi-platform delivery
-- [ ] `api/publish/status.js` — delivery status tracking
+- [x] `api/agents/publishing.js` — Publishing Agent (Postiz multi-channel delivery, batch + single-video modes)
+- [x] `api/cron/process-scheduled.js` — refactored to delegate to Publishing Agent per workspace
+- [x] `api/agents/run.js` — publishing agent registered
+- [x] AgentsView — Publishing Agent card + result display
+- [ ] `api/publish/schedule.js` — schedule-post endpoint (deferred — use content_calendar flow)
 
 ---
 

@@ -10,6 +10,7 @@ import planningAgent from './planning.js'
 import analyticsAgent from './analytics.js'
 import optimizationAgent from './optimization.js'
 import mediaAgent from './media.js'
+import publishingAgent from './publishing.js'
 
 const AGENTS = {
   strategy: strategyAgent,
@@ -18,7 +19,8 @@ const AGENTS = {
   planning: planningAgent,
   analytics: analyticsAgent,
   optimization: optimizationAgent,
-  media: mediaAgent
+  media: mediaAgent,
+  publishing: publishingAgent
 }
 
 export default async function handler(req, res) {
