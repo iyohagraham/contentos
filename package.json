@@ -18,6 +18,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
     "jsonrepair": "^3.14.0",
     "lucide-react": "^0.300.0",
     "openai": "^6.44.0",

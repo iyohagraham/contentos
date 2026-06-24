@@ -8,19 +8,21 @@
  * Contract (stable): generateImage(prompt, opts) ->
  *   { url, width, height, seed?, cost?, provider }
  */
-import { randomUUID } from 'node:crypto'
 import * as fal from '@fal-ai/client'
+import {
+  generateImage as runwareGenerateImage,
+  upscaleImage as runwareUpscaleImage,
+  removeBackground as runwareRemoveBackground,
+  editImage as runwareEditImage,
+  hasRunware
+} from './runware.js'
 
-const RUNWARE_ENDPOINT = 'https://api.runware.ai/v1'
-
-// Runware built-in model AIR identifiers.
-// NOTE: Runware hosts open FLUX weights (dev/schnell). FLUX.1 [pro] is closed,
-// so the 'pro' tier maps to FLUX.1 [dev] — the best open FLUX on Runware.
-const RUNWARE_MODELS = {
-  pro:     'runware:101@1', // FLUX.1 [dev]
-  dev:     'runware:101@1', // FLUX.1 [dev]
-  schnell: 'runware:100@1'  // FLUX.1 [schnell]
-}
+// Re-export the full Runware media-operations surface so callers can reach the
+// extended toolchain (upscale / background removal / edit) through this module too.
+export const upscaleImage = runwareUpscaleImage
+export const removeBackground = runwareRemoveBackground
+export const editImage = runwareEditImage
+export { hasRunware }
 
 const FAL_MODELS = {
   pro: 'fal-ai/flux/pro',
@@ -28,17 +30,9 @@ const FAL_MODELS = {
   schnell: 'fal-ai/flux/schnell'
 }
 
-function hasRunware() { return !!process.env.RUNWARE_API_KEY }
 function hasFal() { return !!(process.env.FAL_KEY || process.env.FAL_AI_API_KEY) }
 
 export function hasImageProvider() { return hasRunware() || hasFal() }
-
-// Runware requires dimensions to be multiples of 64, within [128, 2048].
-function snap64(n, fallback) {
-  const v = Number(n) || fallback
-  const snapped = Math.round(v / 64) * 64
-  return Math.max(128, Math.min(2048, snapped))
-}
 
 // Normalize a model hint ('pro'|'dev'|'schnell' or a fal-style string) to a tier key.
 function tierOf(model) {
@@ -48,49 +42,6 @@ function tierOf(model) {
   if (m.includes('pro')) return 'pro'
   if (m.includes('dev')) return 'dev'
   return 'dev'
-}
-
-async function generateRunware(prompt, opts) {
-  const tier = tierOf(opts.model)
-  const model = opts.runwareModel || RUNWARE_MODELS[tier]
-  const width = snap64(opts.width, 1024)
-  const height = snap64(opts.height, 1024)
-  const steps = opts.steps || (tier === 'schnell' ? 4 : 28)
-
-  const task = {
-    taskType: 'imageInference',
-    taskUUID: randomUUID(),
-    positivePrompt: prompt,
-    model,
-    width,
-    height,
-    numberResults: opts.numImages || 1,
-    outputType: 'URL',
-    outputFormat: opts.outputFormat || 'JPG',
-    steps,
-    includeCost: true
-  }
-  if (opts.guidance_scale != null) task.CFGScale = opts.guidance_scale
-  if (opts.seed != null) task.seed = opts.seed
-
-  const res = await fetch(RUNWARE_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.RUNWARE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify([task])
-  })
-
-  const json = await res.json().catch(() => null)
-  if (!json) throw new Error(`Runware returned non-JSON (HTTP ${res.status})`)
-  if (json.errors?.length) {
-    const e = json.errors[0]
-    throw new Error(`Runware ${e.code || 'error'}: ${e.message || 'unknown'}`)
-  }
-  const out = json.data?.[0]
-  if (!out?.imageURL) throw new Error('Runware returned no imageURL')
-  return { url: out.imageURL, width, height, seed: out.seed, cost: out.cost, provider: 'runware' }
 }
 
 async function generateFal(prompt, opts) {
@@ -121,7 +72,7 @@ async function generateFal(prompt, opts) {
 export async function generateImage(prompt, opts = {}) {
   if (hasRunware()) {
     try {
-      return await generateRunware(prompt, opts)
+      return await runwareGenerateImage(prompt, opts)
     } catch (err) {
       if (hasFal()) {
         console.warn('[image] Runware failed, falling back to fal.ai:', err.message)

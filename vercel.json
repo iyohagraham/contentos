@@ -15,6 +15,9 @@
     "api/production/*.js": {
       "maxDuration": 300
     },
+    "api/media/*.js": {
+      "maxDuration": 300
+    },
     "api/agents/*.js": {
       "maxDuration": 120
     },

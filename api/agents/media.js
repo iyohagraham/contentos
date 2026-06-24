@@ -13,13 +13,12 @@
  *   6. Re-upload ephemeral fal.ai URLs to Vercel Blob
  *   7. Update video record with all asset URLs
  */
-import { getServerSupabase } from '../_db.js'
 import { runAgent } from './_base.js'
 import { generateImage, hasImageProvider } from '../_providers/image.js'
 import { generateVoice, generateVoiceLocal, hasVoiceProvider } from '../_providers/voice.js'
 import { imageToVideo, motionTest, hasVideoProvider } from '../_providers/video.js'
-import { textGenerateJSON } from '../_providers/text.js'
 import { reuploadUrl, hasBlob } from '../_blob.js'
+import { produceVideo } from '../media/engine.js'
 
 const STYLE_LOCK = 'cinematic realism, ultra-detailed, soft studio lighting, shallow depth of field, 4K quality'
 
@@ -91,11 +90,11 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
               voice: 'Serena',
               language: 'English'
             })
-            audioUrl = voiceResult?.audio_url || null
+            audioUrl = voiceResult?.url || null
           } else {
-            // Try local Kokoro
+            // Try local Kokoro (returns a data: URL in `dataUrl`)
             const localResult = await generateVoiceLocal(narrationText, { voice: 'af_heart' }).catch(() => null)
-            audioUrl = localResult?.audio_url || null
+            audioUrl = localResult?.dataUrl || localResult?.url || null
           }
 
           if (audioUrl) {
@@ -114,13 +113,13 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
         const testImageUrl = results.scene_images[0]
         if (testImageUrl) {
           try {
-            const motionResult = await motionTest(testImageUrl, scenes[0]?.motion_prompt || 'gentle camera drift', { durationSeconds: 3 })
-            if (motionResult?.video?.url) {
+            const motionResult = await motionTest(testImageUrl, scenes[0]?.motion_prompt || 'gentle camera drift')
+            if (motionResult?.url) {
               results.motion_clips.push({
                 scene: 0,
                 url: hasBlob()
-                  ? await reuploadUrl(motionResult.video.url, `media/${video_id}/motion_test.mp4`).catch(() => motionResult.video.url)
-                  : motionResult.video.url
+                  ? await reuploadUrl(motionResult.url, `media/${video_id}/motion_test.mp4`).catch(() => motionResult.url)
+                  : motionResult.url
               })
               results.assets_stored++
             }
@@ -135,18 +134,15 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
         const validImages = results.scene_images.filter(Boolean)
         if (validImages.length > 0) {
           try {
-            const videoResult = await imageToVideo(
-              results.scene_images[0],  // primary image
-              scenes[0]?.motion_prompt || 'slow cinematic pan, professional quality',
-              {
-                referenceImages: validImages.slice(0, 5),  // up to 5 for character consistency
-                durationSeconds: 5
-              }
-            )
-            if (videoResult?.video?.url) {
+            const videoResult = await imageToVideo(results.scene_images[0], {
+              prompt: scenes[0]?.motion_prompt || 'slow cinematic pan, professional quality',
+              reference_images: validImages.slice(0, 5),  // up to 5 for character consistency
+              duration: 5
+            })
+            if (videoResult?.url) {
               const clipUrl = hasBlob()
-                ? await reuploadUrl(videoResult.video.url, `media/${video_id}/clip_000.mp4`).catch(() => videoResult.video.url)
-                : videoResult.video.url
+                ? await reuploadUrl(videoResult.url, `media/${video_id}/clip_000.mp4`).catch(() => videoResult.url)
+                : videoResult.url
               results.motion_clips.push({ scene: 0, url: clipUrl })
               results.assets_stored++
             }
@@ -156,15 +152,54 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
         }
       }
 
-      // === Step 5: Persist all asset URLs on video record ===
+      // === Step 5 (optional): Render the final MP4 via the Media Engine ===
+      // Triggered when the mode asks for a render (e.g. 'render' or 'full+render').
+      // Assembles scene images + narration into a finished, persisted video and
+      // mints a poster thumbnail — the same path the one-off render endpoint uses.
+      results.final_video_url = null
+      results.thumbnail_url = null
+      results.video_duration = null
+      const wantsRender = String(mode).includes('render')
+      if (wantsRender) {
+        const renderScenes = buildRenderScenes(scenes, results.scene_images)
+        if (renderScenes.length === 0) {
+          console.warn('[media] Render requested but no usable scene images — skipping render')
+        } else {
+          try {
+            const produced = await produceVideo({
+              scenes: renderScenes,
+              audioUrl: results.voice_audio_url || undefined,
+              format: '9:16',
+              workspaceId: workspace_id,
+              opts: { id: video_id }
+            })
+            results.final_video_url = produced.video_url || null
+            results.thumbnail_url = produced.thumbnail_url || null
+            results.video_duration = produced.durationSec ?? null
+            if (results.final_video_url) results.assets_stored++
+          } catch (renderErr) {
+            console.error('[media] Final render failed:', renderErr.message)
+          }
+        }
+      }
+
+      // === Step 6: Persist all asset URLs on video record ===
+      const hasScenes = results.scene_images.filter(Boolean).length > 0
       const updatePayload = {
         scene_image_urls: results.scene_images.filter(Boolean),
         voice_audio_url: results.voice_audio_url,
-        status: results.scene_images.filter(Boolean).length > 0 ? 'media_ready' : 'media_partial',
+        status: results.final_video_url
+          ? 'assembled'
+          : (hasScenes ? 'media_ready' : 'media_partial'),
         media_generated_at: new Date().toISOString()
       }
       if (results.motion_clips.length > 0) {
         updatePayload.motion_clip_urls = results.motion_clips.map(c => c.url)
+      }
+      if (results.final_video_url) {
+        updatePayload.final_video_url = results.final_video_url
+        updatePayload.thumbnail_url = results.thumbnail_url
+        updatePayload.assembly_completed_at = new Date().toISOString()
       }
 
       await db.from('video_posts').update(updatePayload).eq('id', video_id)
@@ -175,9 +210,12 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
         scenes_total: scenes.length,
         voice_audio_url: results.voice_audio_url,
         motion_clips: results.motion_clips.length,
+        final_video_url: results.final_video_url,
+        thumbnail_url: results.thumbnail_url,
+        video_duration: results.video_duration,
         assets_stored: results.assets_stored,
         mode,
-        ready_to_assemble: !!results.voice_audio_url && results.scene_images.filter(Boolean).length > 0
+        ready_to_assemble: !!results.voice_audio_url && hasScenes
       }
     }
   })
@@ -232,6 +270,28 @@ function buildSceneList(script, title, topic) {
   }
 
   return scenes
+}
+
+/**
+ * Zip the scene metadata (from buildSceneList) with the generated image URLs
+ * into the scene shape produceVideo/buildManifest expects. Scenes whose image
+ * generation failed (null URL) are dropped so the renderer never sees a gap.
+ * ken-burns motion + fade transitions are applied by default in the manifest
+ * builder; narration text flows through so captions can be auto-derived.
+ */
+function buildRenderScenes(scenes, imageUrls) {
+  const out = []
+  for (let i = 0; i < scenes.length; i++) {
+    const url = imageUrls[i]
+    if (!url) continue
+    out.push({
+      image_url: url,
+      narration: scenes[i]?.narration || '',
+      motion: 'kenburns',
+      transition: 'fade'
+    })
+  }
+  return out
 }
 
 function buildNarrationText(script) {
