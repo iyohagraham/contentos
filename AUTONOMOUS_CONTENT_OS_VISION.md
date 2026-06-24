@@ -4296,4 +4296,1019 @@ CIE is built in **Phase 2**, after the Research Engine and Knowledge Base are op
 
 ---
 
+## 18. Skill Intelligence Engine (SIE)
+
+### Purpose
+
+The Skill Intelligence Engine converts repositories, documents, workflows, automations, and prompt packs into **registered, callable, versioned AI skills** — discrete capabilities that agents can invoke by name, compose into higher-order workflows, and improve over time through performance tracking.
+
+The distinction between SIE and the other intelligence layers is precise:
+
+| System | Stores | Used as |
+|---|---|---|
+| KALS (§16) | Knowledge objects — frameworks, techniques, templates | Context injected into agent prompts |
+| CIE (§17) | Channel DNA — blueprints, playbooks, formulas | Strategy grounding + content adaptation |
+| **SIE (§18)** | **Executable skills — callable agent capabilities** | **Functions invoked by agents at runtime** |
+
+A KALS object is something an agent *knows*. A Skill is something an agent *can do*.
+
+**The compound effect:** every GitHub repo, SOP, or prompt pack the operator imports becomes a permanent capability available to every agent. Import a video-analysis skill once; every agent that watches competitor content uses it forever — automatically, versioned, performance-tracked.
+
+---
+
+### Supported Sources
+
+| Source | What Gets Extracted | Collection Method |
+|---|---|---|
+| GitHub repositories | Skill manifest, entry points, interfaces, dependencies, usage examples | GitHub API → file tree + key file reads |
+| PDFs / Documents | Workflow steps → callable process skills; prompt templates → prompt skills | KALS ingestion pipeline (§16) + SIE extraction pass |
+| Google Docs | SOPs, playbooks, automation flows → workflow skills | Google Docs API |
+| Notion pages | Automation playbooks, prompt libraries → composable skills | Notion API |
+| YouTube videos | Tutorial content → process skills extracted from what's demonstrated | `/watch` skill + SIE analysis pass |
+| Prompt libraries | Individual prompts → typed prompt skills with variable interfaces | File parse (txt/md/json/csv) |
+
+---
+
+### Skill Types
+
+Every registered skill has one of six canonical types. The type determines how the skill is invoked and what its manifest must specify.
+
+```typescript
+type SkillType =
+  | "tool"            // Wraps a single external API call or CLI command
+                      // Example: "YouTube Data API Search", "FLUX Image Generator"
+  
+  | "workflow"        // Multi-step sequential process with defined checkpoints
+                      // Example: "Competitor Analysis Workflow", "Video Production Pipeline"
+  
+  | "prompt_chain"    // A sequence of AI prompts producing a structured output
+                      // Example: "Hook Extractor", "Script Critic", "Caption Generator"
+  
+  | "agent_loop"      // An agentic loop that reasons + acts iteratively until done
+                      // Example: "Video Analysis Engine", "Research Agent Core"
+  
+  | "transformation"  // Converts one data format to another deterministically
+                      // Example: "Script → HyperFrames HTML", "SRT → Transcript Object"
+  
+  | "integration"     // Connects to an external service with its own lifecycle
+                      // Example: "Postiz Publisher", "Supabase Store", "Vercel Blob Uploader"
+```
+
+---
+
+### Skill Manifest Schema
+
+Every skill in the registry is described by a manifest. The manifest is the contract — it defines exactly what the skill needs and what it produces, independent of its implementation.
+
+```yaml
+# Canonical Skill Manifest (SKILL.md or skill.json)
+
+name: video-analysis              # unique identifier (kebab-case)
+display_name: "Video Analysis Engine"
+version: "1.0.0"                  # semver
+description: |
+  Watch and analyze any video URL or local file. Downloads via yt-dlp,
+  extracts auto-scaled frames via ffmpeg, pulls captions or Whisper
+  transcript, and returns structured analysis including hook, CTA, 
+  storytelling structure, and platform signals.
+author: "bradautomates"
+source_url: "https://github.com/bradautomates/claude-video"
+license: "MIT"
+skill_type: "agent_loop"
+
+# Interface contract
+interface:
+  inputs:
+    - name: video_url
+      type: string
+      required: true
+      description: "Any URL yt-dlp supports, or a local file path"
+    - name: question
+      type: string
+      required: false
+      description: "Specific question to answer about the video"
+    - name: analysis_mode
+      type: enum
+      values: [general, content_analysis, hook_extraction, competitor_analysis, transcript_only]
+      default: general
+    - name: focus_start
+      type: string           # "MM:SS" or "HH:MM:SS"
+      required: false
+    - name: focus_end
+      type: string
+      required: false
+    - name: max_frames
+      type: int
+      default: 100
+    - name: resolution
+      type: int
+      default: 512           # px width for extracted frames
+      
+  outputs:
+    - name: transcript
+      type: string
+      description: "Timestamped transcript from captions or Whisper"
+    - name: frames
+      type: "string[]"
+      description: "Paths to extracted JPEG frames (t=MM:SS labeled)"
+    - name: duration_s
+      type: int
+    - name: hook
+      type: string
+      description: "First 3-7 seconds of narration (content_analysis mode)"
+    - name: cta
+      type: string
+      description: "Closing call-to-action text"
+    - name: structure
+      type: object
+      description: "{ sections: [{name, start_s, end_s, narration}] }"
+    - name: answer
+      type: string
+      description: "Claude's answer to the question, grounded in frames + transcript"
+
+# System requirements
+dependencies:
+  system:
+    - name: ffmpeg
+      install_mac: "brew install ffmpeg"
+      install_linux: "apt install ffmpeg"
+      install_win: "winget install FFmpeg"
+    - name: yt-dlp
+      install_mac: "brew install yt-dlp"
+      install_linux: "pip install yt-dlp"
+  api_keys:
+    - name: GROQ_API_KEY
+      required: false
+      purpose: "Whisper transcription fallback (preferred — cheaper, faster)"
+      obtain: "https://console.groq.com/keys"
+    - name: OPENAI_API_KEY
+      required: false
+      purpose: "Whisper transcription fallback (alternative)"
+  python_packages: []           # uses only stdlib
+
+# Which agents can invoke this skill
+agent_assignments:
+  - research_agent
+  - analysis_agent
+  - media_agent
+
+# Skill composition
+composes_with:
+  - knowledge-extractor         # pipe transcript → KALS knowledge extraction
+  - hook-pattern-matcher        # pipe hook → KB similarity search
+
+# Usage examples (shown in skill library UI)
+examples:
+  - input: { video_url: "https://youtu.be/abc", analysis_mode: "competitor_analysis" }
+    description: "Analyze competitor hook + storytelling structure"
+  - input: { video_url: "https://youtu.be/abc", focus_start: "0:00", focus_end: "0:10", analysis_mode: "hook_extraction" }
+    description: "Extract only the hook from the first 10 seconds"
+  - input: { video_url: "screen-recording.mp4", question: "What UI element is broken?" }
+    description: "Debug a visual bug from a screen recording"
+
+# Performance targets
+performance:
+  avg_latency_target_s: 45     # yt-dlp + ffmpeg + whisper
+  success_rate_target: 0.97
+  cost_per_invocation_usd: 0.05   # Whisper API estimate
+```
+
+---
+
+### Extraction Pipeline
+
+**From a GitHub Repository:**
+
+```
+Input: GitHub repo URL (e.g. https://github.com/bradautomates/claude-video)
+         │
+         ▼
+[1. Fetch Repository]
+   GitHub API → file tree
+   Download: README.md, SKILL.md/skill.json (if present), 
+             package.json/pyproject.toml, entry-point files, 
+             .claude-plugin/, .codex-plugin/, hooks/
+         │
+         ▼
+[2. Detect Skill Signals]
+   Check for: SKILL.md (canonical manifest), plugin.json, package.json scripts,
+              CLI entry points, Makefile targets, importable main() functions
+   Classify skill_type from code patterns:
+     → single function + API call = "tool"
+     → sequential steps + state = "workflow"  
+     → LLM calls + structured output = "prompt_chain"
+     → agent loop with tool use = "agent_loop"
+         │
+         ▼
+[3. Extract Manifest]
+   If SKILL.md exists → parse directly (it IS the manifest)
+   Otherwise → AI extraction pass:
+     Prompt: "Given this repository, extract a skill manifest. 
+              Identify: name, description, inputs, outputs, dependencies,
+              skill_type, usage examples. Output structured JSON."
+   Merge AI extraction with any existing plugin.json/package.json fields
+         │
+         ▼
+[4. Validate Interface]
+   Check: inputs are typed, outputs are typed, dependencies are named
+   Run: test invocation in sandbox (if executable)
+   Score: completeness (0-1), documentation quality (0-1)
+         │
+         ▼
+[5. Generate Embeddings]
+   Embed: name + description + use_cases → vector(1536)
+   Enables: semantic discovery ("find me a skill for analyzing video")
+         │
+         ▼
+[6. Register in Library]
+   Create skill_manifests record
+   Create skill_versions record (v1.0.0)
+   Map to agent_assignments
+   Index in pgvector
+         │
+         ▼
+[7. Export to KALS (optional)]
+   If skill contains prompt templates → export as knowledge_objects (type: "prompt")
+   If skill contains workflow steps → export as knowledge_objects (type: "process")
+```
+
+**From a PDF / Document:**
+
+The SIE extraction pass runs *after* KALS chunking. For chunks tagged as processes or workflows, SIE attempts to generate a callable skill:
+
+```
+KALS chunk (type: "process") →
+  "Is this a complete enough workflow to wrap as a callable skill?"
+  Yes → generate skill manifest with steps as workflow stages
+  No  → leave as KALS knowledge object only
+```
+
+**From a YouTube Video:**
+
+```
+YouTube tutorial URL →
+  1. Invoke video-analysis skill (irony: skill extraction uses a skill)
+  2. AI analysis: "What process is being demonstrated? 
+                   What are the input → steps → output?"
+  3. Generate: workflow skill manifest from the tutorial's process
+  4. Tag: requires_human_confirmation = true (tutorials need validation)
+```
+
+---
+
+### Skill Library
+
+The Skill Library is the runtime registry. It answers: "what skills are available, and which ones match what I need?"
+
+```typescript
+interface SkillLibrary {
+  // Lookup by name (exact)
+  get(name: string, version?: string): SkillManifest | null
+  
+  // Semantic search ("find a skill that can analyze video content")
+  search(query: string, opts: {
+    agent?: string                // filter by agent assignment
+    skill_type?: SkillType        // filter by type
+    limit?: number                // default 5
+  }): SkillSearchResult[]
+  
+  // List all skills for an agent
+  forAgent(agent: string): SkillManifest[]
+  
+  // Invoke a skill (runtime)
+  invoke(name: string, inputs: Record<string, any>, opts?: {
+    version?: string              // defaults to latest
+    timeout_s?: number
+    workspace_id?: string
+  }): Promise<SkillOutput>
+  
+  // Register a new skill
+  register(manifest: SkillManifest, source: SkillSource): Promise<string>  // returns skill_id
+}
+```
+
+**Built-in skills (shipped with ContentOS):**
+
+| Skill Name | Type | Description | Agent Assignments |
+|---|---|---|---|
+| `generate-script` | prompt_chain | Topic + KB context → structured script JSON | writing_agent |
+| `generate-strategy` | prompt_chain | Business brief + niche data → full strategy | strategy_agent |
+| `generate-ideas` | prompt_chain | Niche + KB → viral idea list | planning_agent |
+| `generate-image` | tool | Prompt → FLUX image via fal.ai | media_agent |
+| `generate-video` | tool | Images + prompt → Wan 2.7 clip | media_agent |
+| `generate-voice` | tool | Text + voice opts → Qwen-TTS audio | media_agent |
+| `generate-music` | tool | Prompt → ElevenLabs/Pixabay track | media_agent |
+| `assemble-video` | workflow | Clips + voice + music → FFmpeg MP4 | media_agent |
+| `publish-postiz` | integration | Content draft → Postiz schedule | publishing_agent |
+| `scrape-youtube` | tool | Channel URL → video metadata + metrics | research_agent |
+| `scrape-apify` | tool | TikTok/IG URL → post data | research_agent |
+| `transcribe-whisper` | tool | Audio → timestamped text | research_agent, analysis_agent |
+| `embed-text` | tool | String → vector(1536) | all agents |
+| `retrieve-knowledge` | tool | Query → KALS semantic results | all agents |
+| `retrieve-channel-playbook` | tool | Query → CIE playbook formulas | writing_agent, planning_agent |
+| `critique-script` | prompt_chain | Script → quality score + suggestions | writing_agent |
+| `extract-hook` | prompt_chain | Transcript → structured hook object | analysis_agent |
+| `upload-blob` | tool | File → Vercel Blob URL | media_agent |
+
+**Imported skills (operator-added, example):**
+
+| Skill Name | Source | Type | Agent Assignments |
+|---|---|---|---|
+| `video-analysis` | github.com/bradautomates/claude-video | agent_loop | research_agent, analysis_agent, media_agent |
+| *(future imports)* | operator imports | varies | varies |
+
+---
+
+### Skill Composition
+
+Skills compose when one skill calls another as part of its execution. Composition is declared in the manifest (`composes_with`) and resolved at runtime by the Skill Library.
+
+```
+# Example: Competitor Analysis Workflow (composed skill)
+
+skill: competitor-analysis
+type: workflow
+composes_with:
+  - video-analysis         # step 1: watch the video
+  - extract-hook           # step 2: isolate the hook
+  - retrieve-knowledge     # step 3: find similar hooks in KALS
+  - transcribe-whisper     # (fallback if no captions)
+
+execution_graph:
+  step_1: video-analysis(video_url, analysis_mode="competitor_analysis")
+    → { transcript, frames, hook, structure }
+  
+  step_2: extract-hook(transcript=step_1.transcript, frames=step_1.frames[0:3])
+    → { hook_text, hook_type, hook_duration_s, emotional_trigger }
+  
+  step_3: retrieve-knowledge(
+      query=step_2.hook_text, 
+      categories=["copywriting"],
+      object_types=["technique", "formula"]
+    )
+    → { similar_hooks, patterns }
+  
+  output: {
+    video_analysis: step_1,
+    extracted_hook: step_2,
+    similar_known_hooks: step_3,
+    novelty_score: cosine_distance(step_2.embedding, step_3.results[0].embedding)
+  }
+```
+
+Composition rules:
+- A skill may compose up to 8 child skills (depth limit prevents runaway chains)
+- Circular composition is rejected at registration time
+- Each composition step is tracked independently in `skill_invocations` (parent + child records)
+- A composed skill fails gracefully if any non-required child skill fails
+
+---
+
+### Agent Skill Assignment
+
+Each agent has a `skill_set` — the list of skills it may invoke. Assignment is declared at the agent level and enforced at runtime.
+
+```typescript
+const AGENT_SKILL_ASSIGNMENTS = {
+  strategy_agent:     ["generate-strategy", "retrieve-knowledge", "retrieve-channel-playbook",
+                        "scrape-youtube", "embed-text"],
+  
+  research_agent:     ["scrape-youtube", "scrape-apify", "transcribe-whisper", "video-analysis",
+                        "embed-text", "retrieve-knowledge", "upload-blob"],
+  
+  analysis_agent:     ["extract-hook", "retrieve-knowledge", "embed-text", "transcribe-whisper",
+                        "video-analysis", "competitor-analysis"],
+  
+  planning_agent:     ["generate-ideas", "retrieve-knowledge", "retrieve-channel-playbook",
+                        "embed-text"],
+  
+  writing_agent:      ["generate-script", "critique-script", "generate-ideas",
+                        "retrieve-knowledge", "retrieve-channel-playbook", "extract-hook"],
+  
+  media_agent:        ["generate-image", "generate-video", "generate-voice", "generate-music",
+                        "assemble-video", "upload-blob", "video-analysis"],
+  
+  publishing_agent:   ["publish-postiz"],
+  
+  analytics_agent:    ["scrape-youtube", "retrieve-knowledge", "embed-text"],
+  
+  optimization_agent: ["retrieve-knowledge", "embed-text", "critique-script"],
+  
+  monetization_agent: ["retrieve-knowledge"]
+}
+```
+
+**Dynamic skill discovery:** agents can also query the Skill Library at runtime — "do I have a skill that can do X?" — allowing future skills to be automatically discovered when relevant to a task, without hardcoded assignment lists needing to change.
+
+---
+
+### Skill Marketplace
+
+The Skill Marketplace is the operator-facing registry for importing third-party skills.
+
+```
+Import Sources:
+  Plugin ID:    bradautomates/claude-video
+  GitHub URL:   https://github.com/bradautomates/claude-video
+  Direct URL:   https://example.com/skills/my-skill.json
+  Local file:   /path/to/SKILL.md (for developer-authored skills)
+
+Import Flow:
+  1. Operator pastes source → SIE fetches + extracts manifest
+  2. SIE displays extracted manifest for review:
+     "Detected: Video Analysis Engine (agent_loop)
+      Inputs: video_url, question, analysis_mode
+      Outputs: transcript, frames, hook, answer
+      Dependencies: ffmpeg, yt-dlp, GROQ_API_KEY (optional)
+      Assigns to: research_agent, analysis_agent, media_agent
+      Risk level: medium (executes local shell commands, sends audio to Groq API)"
+  3. Operator reviews security section + confirms
+  4. Skill registered → available immediately to assigned agents
+```
+
+**Security review (required for external skills):**
+- All imported skills display a security summary extracted from their SKILL.md
+- Skills that run shell commands are flagged: `executes_shell: true`
+- Skills that send data to external APIs list each endpoint
+- Skills that access the filesystem list read/write paths
+- Operator must explicitly acknowledge risks before registration
+
+**Marketplace catalog (future):**
+- Browse public skills submitted by community
+- Skills rated by: installs, success rate, user reviews
+- Categories: video, research, writing, media, analytics, social, finance
+- ContentOS featured picks: curated skills the platform recommends
+
+---
+
+### Versioning
+
+Skills use semantic versioning (major.minor.patch). The library tracks all versions.
+
+```typescript
+interface SkillVersion {
+  skill_id: uuid
+  version: string              // "1.2.3"
+  manifest: SkillManifest      // full manifest at this version
+  changelog: string
+  breaking_changes: boolean    // true = major version bump
+  deprecated: boolean
+  published_at: timestamptz
+}
+```
+
+**Version resolution rules:**
+- Agents pin to a major version by default: `"video-analysis@1"` resolves to latest `1.x.y`
+- A skill's interface cannot change in a minor version (only additions allowed)
+- Breaking interface changes (removing inputs, changing output shapes) require major version bump
+- `latest` alias always resolves to the newest non-deprecated version
+- Operator can lock an agent to a specific version: `"video-analysis@1.0.3"`
+
+**Auto-update:**
+- When a skill's source repo publishes a new release, SIE can poll for updates (if `auto_update: true`)
+- Minor and patch updates → auto-import, no review required
+- Major updates → flagged for operator review (breaking changes may need agent prompt updates)
+
+---
+
+### Performance Tracking
+
+Every skill invocation is recorded, enabling data-driven skill improvement and cost control.
+
+```sql
+TABLE skill_invocations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  skill_id uuid NOT NULL REFERENCES skill_manifests(id),
+  skill_version text NOT NULL,
+  invoking_agent text,              -- which agent called this skill
+  parent_invocation_id uuid,        -- if called as part of a composed skill
+  
+  -- Execution
+  inputs json NOT NULL,
+  outputs json,
+  status text,                      -- success / failed / timeout / partial
+  error text,
+  
+  -- Performance
+  latency_ms int,
+  cost_usd numeric(10,6),           -- calculated from API costs
+  
+  -- Quality (optional — filled by the invoking agent post-use)
+  output_quality_score float,       -- 0-1, agent's self-assessment
+  was_useful boolean,               -- did the output actually help?
+  
+  started_at timestamptz DEFAULT now(),
+  completed_at timestamptz
+);
+```
+
+**Skill Performance Dashboard:**
+
+```
+video-analysis  v1.0.0                          Last 30 days
+─────────────────────────────────────────────────────────────
+Invocations:    247        Success Rate:  96.8%
+Avg Latency:    38s        P99 Latency:   94s
+Total Cost:     $11.23     Avg Cost:      $0.046
+Quality Score:  0.89/1.0   Useful Rate:   94%
+
+Breakdown by mode:
+  competitor_analysis  → 142 calls, 98% success, $0.048 avg
+  hook_extraction      →  61 calls, 97% success, $0.031 avg
+  general              →  44 calls, 93% success, $0.057 avg
+
+Top failures:
+  "No captions + no API key" → 5 calls (add GROQ_API_KEY)
+  "yt-dlp timeout"           → 3 calls (region-locked videos)
+
+Version comparison:
+  v1.0.0 (current)   quality 0.89, latency 38s
+  (no prior version)
+```
+
+---
+
+### Database Schema
+
+```sql
+-- SKILL MANIFESTS (registered skills)
+CREATE TABLE skill_manifests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid REFERENCES workspaces(id),  -- NULL = system/built-in skill
+  
+  name text NOT NULL,             -- "video-analysis" (unique per workspace)
+  display_name text,
+  description text NOT NULL,
+  skill_type text NOT NULL,       -- SkillType enum
+  
+  -- Source
+  source_type text,               -- github / pdf / youtube / prompt_library / manual
+  source_url text,
+  author text,
+  license text,
+  
+  -- Interface
+  interface json NOT NULL,        -- { inputs: [], outputs: [] }
+  dependencies json,              -- { system: [], api_keys: [], python_packages: [] }
+  
+  -- Assignment
+  agent_assignments text[],
+  composes_with text[],           -- other skill names this composes
+  
+  -- State
+  status text DEFAULT 'active',   -- active / deprecated / disabled
+  current_version text NOT NULL,  -- "1.0.3"
+  
+  -- Discovery
+  embedding vector(1536),         -- embed name + description + use_cases
+  tags text[],
+  
+  -- Security
+  executes_shell boolean DEFAULT false,
+  external_api_endpoints text[],  -- APIs this skill calls
+  filesystem_access text[],       -- paths it reads/writes
+  risk_level text,                -- low / medium / high
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  
+  UNIQUE(workspace_id, name)
+);
+CREATE INDEX ON skill_manifests USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+
+-- SKILL VERSIONS
+CREATE TABLE skill_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id uuid NOT NULL REFERENCES skill_manifests(id) ON DELETE CASCADE,
+  version text NOT NULL,
+  manifest json NOT NULL,          -- full manifest snapshot at this version
+  changelog text,
+  breaking_changes boolean DEFAULT false,
+  deprecated boolean DEFAULT false,
+  published_at timestamptz DEFAULT now(),
+  UNIQUE(skill_id, version)
+);
+
+-- SKILL SOURCES (raw extraction records)
+CREATE TABLE skill_sources (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid REFERENCES workspaces(id),
+  skill_id uuid REFERENCES skill_manifests(id),
+  source_type text NOT NULL,
+  source_url text,
+  raw_content text,               -- README, SKILL.md, etc.
+  extraction_status text DEFAULT 'queued',
+  extraction_result json,
+  extraction_error text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- AGENT SKILL ASSIGNMENTS (runtime — can override defaults)
+CREATE TABLE agent_skill_assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  agent_type text NOT NULL,
+  skill_name text NOT NULL,
+  version_pin text,               -- NULL = latest; "1" = latest 1.x.y; "1.2.3" = exact
+  enabled boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(workspace_id, agent_type, skill_name)
+);
+
+-- SKILL INVOCATIONS (performance tracking)
+CREATE TABLE skill_invocations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  skill_id uuid NOT NULL REFERENCES skill_manifests(id),
+  skill_version text NOT NULL,
+  invoking_agent text,
+  parent_invocation_id uuid REFERENCES skill_invocations(id),
+  inputs json NOT NULL,
+  outputs json,
+  status text,
+  error text,
+  latency_ms int,
+  cost_usd numeric(10,6),
+  output_quality_score float,
+  was_useful boolean,
+  started_at timestamptz DEFAULT now(),
+  completed_at timestamptz
+);
+
+-- SKILL COMPOSITIONS (declared composition edges)
+CREATE TABLE skill_compositions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_skill_id uuid NOT NULL REFERENCES skill_manifests(id),
+  child_skill_id uuid NOT NULL REFERENCES skill_manifests(id),
+  execution_order int,
+  input_mapping json,             -- how parent inputs → child inputs
+  output_mapping json,            -- how child outputs → parent outputs
+  required boolean DEFAULT true,  -- if false, failure is non-fatal
+  UNIQUE(parent_skill_id, child_skill_id)
+);
+```
+
+**Semantic skill discovery function:**
+
+```sql
+CREATE OR REPLACE FUNCTION match_skills(
+  query_embedding vector(1536),
+  workspace_id uuid DEFAULT NULL,
+  agent_filter text DEFAULT NULL,
+  skill_type_filter text DEFAULT NULL,
+  match_count int DEFAULT 5
+) RETURNS TABLE (
+  id uuid, name text, display_name text, skill_type text,
+  description text, agent_assignments text[], similarity float
+) LANGUAGE sql STABLE AS $$
+  SELECT sm.id, sm.name, sm.display_name, sm.skill_type,
+         sm.description, sm.agent_assignments,
+         1 - (sm.embedding <=> query_embedding) AS similarity
+  FROM skill_manifests sm
+  WHERE sm.status = 'active'
+    AND (match_skills.workspace_id IS NULL 
+         OR sm.workspace_id IS NULL               -- include built-in (NULL workspace)
+         OR sm.workspace_id = match_skills.workspace_id)
+    AND (agent_filter IS NULL OR agent_filter = ANY(sm.agent_assignments))
+    AND (skill_type_filter IS NULL OR sm.skill_type = skill_type_filter)
+  ORDER BY sm.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+---
+
+### Agent Integration
+
+Skills are the execution primitives agents use to get things done. The pattern is always the same:
+
+```typescript
+// Generic agent execution pattern
+async function agentStep(agent: string, task: string) {
+  
+  // 1. Discover relevant skills via semantic search
+  const relevantSkills = await skillLibrary.search(task, { agent })
+  
+  // 2. Select the best skill for this step
+  const selectedSkill = selectSkill(relevantSkills, task)
+  
+  // 3. Map task parameters to skill inputs
+  const inputs = mapTaskToSkillInputs(task, selectedSkill.interface.inputs)
+  
+  // 4. Invoke the skill
+  const result = await skillLibrary.invoke(selectedSkill.name, inputs, {
+    workspace_id,
+    timeout_s: 120
+  })
+  
+  // 5. Record invocation (auto-tracked by skill library)
+  
+  // 6. Process output
+  return processSkillOutput(result, selectedSkill.interface.outputs)
+}
+```
+
+**Research Agent using Video Analysis skill:**
+
+```typescript
+// Research Agent analyzing a competitor video
+const analysis = await skillLibrary.invoke("video-analysis", {
+  video_url: "https://youtu.be/<competitor-video>",
+  analysis_mode: "competitor_analysis",
+  focus_start: "0:00",
+  focus_end: "0:10"    // just the hook
+})
+
+// analysis.hook → extract to hooks table
+// analysis.structure → extract to content_patterns table
+// analysis.transcript → embed + store in research_assets
+await skillLibrary.invoke("knowledge-extractor", {
+  content: analysis.transcript,
+  hook: analysis.hook,
+  workspace_id
+})
+```
+
+**Media Agent using Video Analysis + Image Generation:**
+
+```typescript
+// Media Agent studying a reference video's thumbnail before generating
+const reference = await skillLibrary.invoke("video-analysis", {
+  video_url: referenceChannelVideo,
+  analysis_mode: "general",
+  max_frames: 3,
+  focus_start: "0:00",
+  focus_end: "0:03"    // just the thumbnail-equivalent first frame
+})
+
+// Use thumbnail style insights to enrich FLUX prompt
+const enrichedPrompt = `${basePrompt}, ${reference.answer}`
+
+const thumbnail = await skillLibrary.invoke("generate-image", {
+  prompt: enrichedPrompt,
+  provider: "flux-pro",
+  aspect_ratio: "16:9"
+})
+```
+
+---
+
+### UI Design
+
+#### Skill Library View
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  SKILL LIBRARY                                      [+ Import Skill]         │
+│                                                                              │
+│  Search skills...            Filter: All Types ▼   All Agents ▼            │
+│                                                                              │
+│  INSTALLED                                                                  │
+│  ──────────                                                                 │
+│  ┌────────────────────────────┐  ┌────────────────────────────┐            │
+│  │  🎬  VIDEO ANALYSIS         │  │  ✍️  GENERATE SCRIPT         │            │
+│  │  agent_loop · v1.0.0       │  │  prompt_chain · built-in   │            │
+│  │  Watch any video URL or    │  │  Topic + KB context →      │            │
+│  │  file; extracts frames,    │  │  structured viral script   │            │
+│  │  transcript, hook, CTA     │  │  JSON via Kimi k2.7        │            │
+│  │  ────────────────────────  │  │  ────────────────────────  │            │
+│  │  Agents: research analysis │  │  Agents: writing           │            │
+│  │  Calls: 247  Success: 97%  │  │  Calls: 891  Success: 99%  │            │
+│  │  Avg cost: $0.046          │  │  Avg cost: $0.008          │            │
+│  │  [View] [Configure] [...]  │  │  [View] [Configure] [...]  │            │
+│  └────────────────────────────┘  └────────────────────────────┘            │
+│                                                                              │
+│  IMPORT SKILL                                                               │
+│  ────────────                                                               │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  GitHub:  bradautomates/claude-video                                 │  │
+│  │           https://github.com/bradautomates/claude-video    [Import]  │  │
+│  │  Prompt:  /path/to/prompt-library.md                       [Import]  │  │
+│  │  YouTube: https://youtube.com/tutorial                     [Import]  │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Skill Import Flow
+
+```
+[Operator pastes: bradautomates/claude-video]
+     │
+     ▼
+SIE EXTRACTION REPORT
+──────────────────────
+✓ Repository fetched (2,409 stars, MIT license)
+✓ SKILL.md found → manifest parsed directly
+
+Skill: Video Analysis Engine
+Type:  agent_loop (watches videos, reasons about them iteratively)
+
+Interface:
+  Inputs:   video_url (req), question, analysis_mode, focus_start, focus_end
+  Outputs:  transcript, frames, hook, cta, structure, answer
+
+Dependencies:
+  System:     ffmpeg, yt-dlp (auto-install on first run via brew/apt)
+  API Keys:   GROQ_API_KEY (optional — for Whisper fallback)
+
+Security Review:
+  ⚠  Executes shell commands (yt-dlp download, ffmpeg extraction)
+  ⚠  Sends audio to api.groq.com (only when no native captions)
+  ✓  Does NOT upload video to any external service
+  ✓  Does NOT access social accounts or credentials
+  ✓  Cleans up working directory after use
+  Risk Level: MEDIUM
+
+Assign to agents: [✓ research_agent] [✓ analysis_agent] [✓ media_agent]
+
+[Review Security Details]    [Cancel]    [Import Skill →]
+```
+
+---
+
+### Worked Example: Video Analysis Engine
+
+This is a complete, real skill extracted from **[github.com/bradautomates/claude-video](https://github.com/bradautomates/claude-video)** (2,409 stars, MIT, Python, last updated 2025). It is production-ready and importable today.
+
+#### What the repo contains
+
+```
+claude-video/
+├── SKILL.md                 # canonical skill manifest — auto-parsed by SIE
+├── scripts/
+│   ├── watch.py             # entry point: orchestrates download → frames → transcript
+│   ├── download.py          # yt-dlp wrapper (YouTube, TikTok, Vimeo, X, Instagram, etc.)
+│   ├── frames.py            # ffmpeg frame extraction + duration-aware auto-fps logic
+│   ├── transcribe.py        # native captions first, Whisper fallback
+│   ├── whisper.py           # Groq whisper-large-v3 + OpenAI whisper-1 (pure stdlib)
+│   └── setup.py             # preflight: detects missing deps, installs on macOS, guides others
+├── hooks/hooks.json         # SessionStart hook: silent preflight on every session
+├── .claude-plugin/          # Claude Code plugin manifest + marketplace.json
+└── .codex-plugin/           # Codex packaging
+```
+
+#### Extracted Skill Record
+
+```json
+{
+  "name": "video-analysis",
+  "display_name": "Video Analysis Engine",
+  "version": "1.0.3",
+  "source": "github:bradautomates/claude-video",
+  "license": "MIT",
+  "skill_type": "agent_loop",
+  
+  "interface": {
+    "inputs": [
+      { "name": "video_url",      "type": "string",  "required": true  },
+      { "name": "question",       "type": "string",  "required": false },
+      { "name": "analysis_mode",  "type": "enum",    "values": ["general","content_analysis","hook_extraction","competitor_analysis","transcript_only"], "default": "general" },
+      { "name": "focus_start",    "type": "string",  "required": false },
+      { "name": "focus_end",      "type": "string",  "required": false },
+      { "name": "max_frames",     "type": "int",     "default": 100    },
+      { "name": "resolution",     "type": "int",     "default": 512    }
+    ],
+    "outputs": [
+      { "name": "transcript",     "type": "string"   },
+      { "name": "frames",         "type": "string[]" },
+      { "name": "duration_s",     "type": "int"      },
+      { "name": "hook",           "type": "string"   },
+      { "name": "cta",            "type": "string"   },
+      { "name": "structure",      "type": "object"   },
+      { "name": "answer",         "type": "string"   }
+    ]
+  },
+  
+  "dependencies": {
+    "system": [
+      { "name": "ffmpeg",  "install_mac": "brew install ffmpeg",  "install_linux": "apt install ffmpeg" },
+      { "name": "yt-dlp",  "install_mac": "brew install yt-dlp",  "install_linux": "pip install yt-dlp" }
+    ],
+    "api_keys": [
+      { "name": "GROQ_API_KEY",   "required": false, "purpose": "Whisper fallback (preferred)" },
+      { "name": "OPENAI_API_KEY", "required": false, "purpose": "Whisper fallback (alternative)" }
+    ]
+  },
+  
+  "agent_assignments": ["research_agent", "analysis_agent", "media_agent"],
+  "composes_with": ["knowledge-extractor", "hook-pattern-matcher"],
+  
+  "security": {
+    "executes_shell": true,
+    "external_api_endpoints": ["api.groq.com/openai/v1/audio/transcriptions", "api.openai.com/v1/audio/transcriptions"],
+    "filesystem_access": ["/tmp/watch_*", "~/.config/watch/.env"],
+    "risk_level": "medium"
+  },
+  
+  "use_cases_for_contentos": [
+    "Research Agent: analyze competitor video hook + storytelling structure",
+    "Research Agent: extract transcript from competitor content → feed into KALS",
+    "Analysis Agent: study top-performing videos in the workspace niche",
+    "Media Agent: study reference thumbnails (first frame) before generating our own",
+    "Channel Intelligence Engine: analyze CIE-tracked competitor uploads automatically"
+  ]
+}
+```
+
+#### How ContentOS Agents Use It
+
+```
+Research Agent — daily competitor scan:
+  For each new competitor video detected by CIE:
+    1. invoke("video-analysis", { video_url, analysis_mode: "competitor_analysis", focus_start: "0:00", focus_end: "0:15" })
+    2. Extract hook → insert into hooks table + KALS
+    3. Embed transcript → store in research_assets
+    4. Feed structure → content_patterns table
+
+Analysis Agent — weekly pattern extraction:
+  For top 5 performers in niche (last 7 days):
+    1. invoke("video-analysis", { video_url, analysis_mode: "hook_extraction" })
+    2. Cluster hooks → detect new patterns
+    3. Update KB weights for winning hook types
+
+Media Agent — thumbnail reference study:
+  Before generating thumbnail for content draft:
+    1. Find top-performing video in same pillar (analytics query)
+    2. invoke("video-analysis", { video_url: top_video.url, max_frames: 3, focus_start: "0:00", focus_end: "0:03" })
+    3. Use first-frame analysis to enrich FLUX thumbnail prompt
+```
+
+#### Installation (import today)
+
+```
+# In ContentOS Skill Library UI:
+Import → GitHub → bradautomates/claude-video → [Review] → [Import]
+
+# Or via CLI (once ContentOS CLI exists):
+contentos skill import bradautomates/claude-video
+
+# The skill is then immediately available:
+await skillLibrary.invoke("video-analysis", {
+  video_url: "https://youtu.be/...",
+  analysis_mode: "competitor_analysis"
+})
+```
+
+---
+
+### Implementation Plan (SIE-specific)
+
+SIE is built across **Phase 2 and Phase 3**, after the core creation pipeline is running.
+
+**Phase 2, Week 3 — Skill Registry Foundation**
+- [ ] `skill_manifests`, `skill_versions`, `skill_sources`, `agent_skill_assignments`, `skill_invocations`, `skill_compositions` tables
+- [ ] Built-in skill registration: auto-register all existing API endpoints as typed skills
+- [ ] Skill Library class: `get()`, `search()`, `forAgent()`, `invoke()`, `register()`
+- [ ] `match_skills` pgvector function deployed to Supabase
+- [ ] Agent execution framework: agents call skills through Skill Library instead of direct API calls
+- [ ] Invocation tracking: every skill call logged to `skill_invocations`
+
+**Phase 2, Week 4 — GitHub Import + Video Analysis Skill**
+- [ ] GitHub import pipeline: fetch → file tree → extract manifest → validate → register
+- [ ] SKILL.md parser (already the format used by claude-video)
+- [ ] AI extraction fallback: when no SKILL.md, generate manifest from README + code
+- [ ] **Import `bradautomates/claude-video` as first external skill**
+- [ ] Security review UI: display risk level + external endpoints before import
+- [ ] Wire `video-analysis` skill to Research Agent and Analysis Agent
+
+**Phase 3, Week 1 — Skill Composition**
+- [ ] `skill_compositions` wiring: parent → child input/output mapping
+- [ ] `competitor-analysis` composed skill (video-analysis + extract-hook + retrieve-knowledge)
+- [ ] Graceful failure in composed skills (non-required children)
+- [ ] Composition depth limit enforcement (max 8 levels)
+
+**Phase 3, Week 2 — Marketplace + Versioning**
+- [ ] Skill performance dashboard: invocations, success rate, avg latency, cost, quality
+- [ ] Version management: version pinning per agent assignment, breaking-change detection
+- [ ] YouTube tutorial → skill extraction (SIE analysis of tutorial content)
+- [ ] PDF/doc → skill extraction (process chunks → workflow skill)
+- [ ] Marketplace UI: browse, import, security review, assign to agents
+
+**Phase 3, Week 3+ — Advanced**
+- [ ] Auto-update: poll source repos for new releases, auto-import minor/patch
+- [ ] A/B skill comparison: run two skill versions in parallel → compare quality scores
+- [ ] Skill cost budgeting: per-workspace monthly spend cap per skill
+- [ ] Cross-workspace skill sharing (opt-in community pool)
+
+---
+
+### Summary Table Update
+
+| Dimension | Today | With SIE |
+|---|---|---|
+| **Agent capabilities** | Hardcoded API calls | Named, versioned, composable skills |
+| **External tools** | Manual integration per tool | Import any repo → skill in minutes |
+| **Video analysis** | None | `video-analysis` skill: watch any URL, extract hook/transcript/frames |
+| **Capability discovery** | None | Semantic search: "find a skill that can do X" |
+| **Cost visibility** | None | Per-skill invocation cost tracked, dashboard visible |
+| **Skill improvement** | None | Performance tracking → quality scores → version comparison |
+| **Community** | None | Marketplace: import community-built skills |
+
+---
+
+*End of Skill Intelligence Engine specification.*
+
+---
+
 *This document is the canonical architectural reference for ContentOS v2.0. All implementation decisions should be evaluated against this vision. Phase boundaries are estimates — pace them to available resources and real-world performance signals.*
