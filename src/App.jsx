@@ -17,12 +17,11 @@ import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format
 import { resetData } from './lib/db/seed.js'
 import { postiz } from './lib/postizClient.js'
 import { authEnabled, signOut } from './lib/auth.js'
+import { useWorkspace } from './lib/useWorkspace.js'
 import KnowledgeView from './views/KnowledgeView.jsx'
 import ResearchView from './views/ResearchView.jsx'
 import IntelligenceView from './views/IntelligenceView.jsx'
 import AgentsView from './views/AgentsView.jsx'
-
-const DEFAULT_WORKSPACE_ID = 'default'
 
 const PLATFORMS = {
   tiktok: { name: 'TikTok', icon: '♫', color: 'black', bg: 'bg-black' },
@@ -36,6 +35,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // Force rebuild - v2
   const dbMode = useDbMode()
+  const { workspaceId } = useWorkspace()
 
   // Live data from store (localStorage or Supabase)
   const { data: rawChannels, create: createChannel, update: updateChannel, remove: removeChannel } = useChannels()
@@ -107,10 +107,10 @@ function App() {
           {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
           {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
-          {activeView === 'knowledge' && <KnowledgeView workspaceId={DEFAULT_WORKSPACE_ID} />}
-          {activeView === 'research' && <ResearchView workspaceId={DEFAULT_WORKSPACE_ID} />}
-          {activeView === 'intelligence' && <IntelligenceView workspaceId={DEFAULT_WORKSPACE_ID} />}
-          {activeView === 'agents' && <AgentsView workspaceId={DEFAULT_WORKSPACE_ID} />}
+          {activeView === 'knowledge' && <KnowledgeView workspaceId={workspaceId} />}
+          {activeView === 'research' && <ResearchView workspaceId={workspaceId} />}
+          {activeView === 'intelligence' && <IntelligenceView workspaceId={workspaceId} />}
+          {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
         </main>
       </div>
     </div>
