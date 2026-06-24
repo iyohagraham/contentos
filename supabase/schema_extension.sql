@@ -951,3 +951,27 @@ ALTER TABLE model_routing_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_owner" ON model_routing_log FOR ALL USING (
   workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid())
 );
+
+-- ============================================
+-- AUTONOMOUS BRAND MODE — notifications (things needing operator attention)
+-- ============================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  type TEXT,              -- failure | approval_needed | digest | anomaly | info
+  severity TEXT DEFAULT 'info',  -- critical | warning | info
+  title TEXT,
+  body TEXT,
+  dedupe_key TEXT,        -- stable key to avoid duplicate open alerts
+  data JSONB DEFAULT '{}',
+  status TEXT DEFAULT 'open',  -- open | acknowledged | resolved
+  created_at TIMESTAMPTZ DEFAULT now(),
+  acknowledged_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_ws ON notifications (workspace_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_dedupe ON notifications (workspace_id, dedupe_key, status);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "workspace_owner" ON notifications FOR ALL USING (
+  workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid())
+);

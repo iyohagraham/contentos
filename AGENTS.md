@@ -84,8 +84,9 @@ api/                       Vercel serverless functions (plain ESM)
     formats.js             9:16 / 16:9 / 1:1 presets + exportFormat()
     composition.js         Timeline manifest builder (OpenMontage-compatible)
     index.js               RenderProvider selector (ffmpeg default; openmontage stub)
-  agents/                  8 agents: strategy, writing, research, planning, analytics,
-                           optimization, media, publishing (+ _base.js, run.js dispatcher)
+  agents/                  9 agents: strategy, writing, research, planning, analytics,
+                           optimization, media, publishing, notification (+ _base.js, run.js)
+  monitor/                 status.js (Brand Mode health) + notifications.js (ack/resolve)
   knowledge/               ingest, search, rag, assets, _chunker (pgvector RAG)
   skills/                  ingest, _extract, search, _context, apply, list, blob-upload
   media/                   engine.js (orchestrator) + Mode-A endpoints
@@ -166,14 +167,15 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Content Planning:** calendar + campaign generation with 5-factor opportunity scoring
 - **Media Engine (Priority 1):** Runware assets → voice → composition manifest → **FFmpeg render** → multi-format export (9:16/16:9/1:1); live-tested end-to-end
 - **Model Router:** provider/model-agnostic routing (registry/scoring/rules), candidate fallback, decision logging; 10/10 selection tests pass
-- **8 Agents:** strategy, writing, research, planning, analytics, optimization, media, publishing
+- **9 Agents:** strategy, writing, research, planning, analytics, optimization, media, publishing, notification
 - **Publishing:** Postiz multi-channel (single + batch)
+- **Brand Monitoring (Phase 10):** Notification Agent (pure-DB scan for failures + approval-gate items, de-duped) + `/api/monitor/status` aggregation + `MonitorView` dashboard (job queue, agent activity, content pipeline, routing mix, alerts w/ ack/resolve, insights)
 - **Frontend:** Knowledge, Research, Intelligence, Agents, Skills, WorkspaceConfig (Brand Mode) views
 - **Auth scaffold:** dormant until `VITE_SUPABASE_*` set
 
 ### In Progress
 - **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ (keyless RSS). IG/TikTok ✅ via pluggable scraper provider (`SOCIAL_SCRAPER_URL`) + operator paste (`samples` in analyze body) + best-effort TikTok scrape. Remaining: surface "clone/adapt/improve strategy → new niche" in the UI; optionally ship a default IG/TikTok scraper integration.
-- **Autonomous Brand Mode (Phase 10):** operating-mode UI done; needs monitoring dashboard, Notification Agent, 30-day test run
+- **Autonomous Brand Mode (Phase 10):** operating-mode UI ✅, Notification Agent ✅, monitoring dashboard ✅. Remaining: a 30-day unattended test run, and external alert delivery (email/push) — alerts are currently in-app only.
 
 ### Planned / Not Started
 - Remaining agents: Analysis, Monetization, Notification
@@ -291,6 +293,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Brand Monitoring (Phase 10)
+- **What:** `api/agents/notification.js` (Notification Agent — pure DB scan, no AI keys: detects failed jobs/agent_runs/content + review-gate approval items, de-dupes via `dedupe_key`, writes `notifications`), `api/monitor/{status,notifications}.js` (health aggregation + ack/resolve), `notifications` table, `src/views/MonitorView.jsx` + nav. Registered notification in `run.js` (cron `agent:notification` now resolves).
+- **Why:** Autonomous Brand Mode needs operator visibility — what's failing, what's waiting at a gate, loop health — without babysitting logs.
+- **Impact:** The monitoring dashboard is the human window into the autonomous loop. Notification Agent runs on the same queue/cron path as other agents. Remaining Phase-10 work: 30-day unattended run + external alert delivery (email/push).
 
 ### 2026-06-24 — IG/TikTok real ingestion (pluggable + manual)
 - **What:** Extended `_sources.js` with a provider-agnostic scraper hook (`SOCIAL_SCRAPER_URL`/`SOCIAL_SCRAPER_KEY` — receives `{platform,url,max}`, returns `{samples}`), best-effort keyless TikTok page scrape (SIGI/universal-data JSON), and `normalizeSamples()` (tolerates any field convention). `analyze.js` now accepts operator-pasted `samples` directly (reliable real data for IG/TikTok).
