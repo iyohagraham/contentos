@@ -24,6 +24,19 @@
  * @param {Weights} weights
  * @returns {number}
  */
+import { getModelOverride } from './model-registry.js'
+
+/**
+ * Resolve the effective score for a field, applying any auto-learned override.
+ * @param {object} model
+ * @param {string} field
+ */
+function effectiveScore(model, field) {
+  const ov = getModelOverride(model.id)
+  if (ov && ov[field] != null) return Number(ov[field])
+  return Number(model[field]) || 0
+}
+
 export function scoreModel(model, weights = {}) {
   if (!model) return 0
   const w = {
@@ -33,10 +46,10 @@ export function scoreModel(model, weights = {}) {
     reliability: Number(weights.reliability) || 0
   }
   const s = {
-    quality: Number(model.qualityScore) || 0,
-    speed: Number(model.speedScore) || 0,
-    cost: Number(model.costScore) || 0,
-    reliability: Number(model.reliabilityScore) || 0
+    quality: effectiveScore(model, 'qualityScore'),
+    speed: effectiveScore(model, 'speedScore'),
+    cost: effectiveScore(model, 'costScore'),
+    reliability: effectiveScore(model, 'reliabilityScore')
   }
   return w.quality * s.quality + w.speed * s.speed + w.cost * s.cost + w.reliability * s.reliability
 }

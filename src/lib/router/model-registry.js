@@ -238,6 +238,45 @@ export const MODELS = [
 ]
 
 /**
+ * Runtime score overrides — a pure-mutable Map the SERVER bootstrap populates
+ * from `model_routing_log` (auto-learning). Keys are model ids; values are the
+ * numeric score to substitute for the static registry value. The scoring engine
+ * reads these via getModelOverride(). Keeping this PURE (no env/api imports)
+ * so the frontend bundle stays clean — overrides simply aren't set there.
+ * @type {Map<string, { reliabilityScore?: number, speedScore?: number, qualityScore?: number, costScore?: number }>}
+ */
+const _overrides = new Map()
+
+/**
+ * Apply a learned score override for a model (server bootstrap / cron only).
+ * Only fields present in the patch are overridden; others keep the static
+ * registry value. Values are clamped to the 1..10 scoring range.
+ * @param {string} id
+ * @param {{ reliabilityScore?: number, speedScore?: number, qualityScore?: number, costScore?: number }} patch
+ */
+export function setModelOverride(id, patch = {}) {
+  if (!id) return
+  const clamp = (v) => (Number.isFinite(v) ? Math.max(1, Math.min(10, v)) : undefined)
+  const cur = _overrides.get(id) || {}
+  const next = { ...cur }
+  for (const k of ['reliabilityScore', 'speedScore', 'qualityScore', 'costScore']) {
+    if (patch[k] != null && Number.isFinite(Number(patch[k]))) next[k] = clamp(Number(patch[k]))
+  }
+  _overrides.set(id, next)
+}
+
+/** Clear all learned overrides (e.g. before recomputing). */
+export function clearModelOverrides() { _overrides.clear() }
+
+/**
+ * Get the override patch for a model, if any (server-populated).
+ * @param {string} id
+ */
+export function getModelOverride(id) {
+  return _overrides.get(id) || null
+}
+
+/**
  * @returns {ModelRecord[]} a shallow copy of every registered model.
  */
 export function getAllModels() {

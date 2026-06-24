@@ -24,8 +24,10 @@ import {
 import { imageToVideo, hasVideoProvider } from './video.js'
 import { generateVoice, generateVoiceLocal, hasVoiceProvider } from './voice.js'
 import { getServerSupabase } from '../_db.js'
+import { computeAndApplyLearnedRouting } from './learned-routing.js'
 
 let _ready = false
+let _learnApplied = false
 
 /** Map a registry model id to the tier runware.js generateImage expects. */
 function runwareTier(modelId) {
@@ -128,6 +130,13 @@ export function ensureRouterReady() {
       })
       .catch(() => {}) // logging is best-effort
   })
+
+  // Apply any previously-learned reliability overrides from model_routing_log so
+  // the router starts warm after a cold start (fire-and-forget; never blocks).
+  if (!_learnApplied) {
+    _learnApplied = true
+    computeAndApplyLearnedRouting({ lookbackDays: 14 }).catch(() => {})
+  }
 }
 
 export default ensureRouterReady

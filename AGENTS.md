@@ -193,7 +193,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 ### Planned / Not Started
 - ✅ Monetization agent now built — the planned agent set is complete.
 - OpenMontage worker render path (heavy compositions via Remotion/HyperFrames) behind the existing RenderProvider interface
-- Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning not implemented — in progress
+- ✅ Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning now implemented
 - Real OpenAI/DALL·E image adapter (currently a stub that falls through to Runware)
 
 ---
@@ -306,6 +306,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Auto-learning Model Router
+- **What:** Added `api/_providers/learned-routing.js` (reads `model_routing_log` over 14-day window, computes per-model success rate → maps to learned `reliabilityScore` 10/9/8/7/6/4), `api/_providers/router-adapters.js` applies learned overrides at bootstrap via `model-registry.setModelOverride()` (runtime-overrides map in pure registry), `scoring-engine.js` reads overrides via `model-registry.getModelOverride()` (scoring engine now merges static + learned scores). `api/router/learn.js` exposes POST `/api/router/learn` (manual re-learn) + GET `/api/router/scores` (read-only visibility). Weekly `cron/learning-loop.js` runs `computeAndApplyLearnedRouting()` alongside the optimization enqueue.
+- **Why:** The Model Router was static-scored; real-world reliability varies (provider flakiness, key rotation, model degradation). Auto-learning closes the loop so the router down-ranks flaky models and favors steady ones without hardcoding.
+- **Impact:** Router is now self-improving. `node --check` + `vite build` green. Pure router stays pure — overrides injected server-side at bootstrap + cron, just like adapters. No schema change. Manual endpoint + cron dual-path for control.
 
 ### 2026-06-24 — Monetization Agent (10th agent — planned set complete)
 - **What:** Added `api/agents/monetization.js` (10th agent) + registered in `run.js`. Uses workspace products + revenue_events + post_analytics to build a revenue-by-video leaderboard and funnel-health snapshot (total/attributed revenue, attribution rate, revenue-per-view), then asks the AI for evidence-grounded recommendations (pricing/CTA/lead-magnet/product-fit/funnel/bundling), pricing suggestions, and which top content should get a direct product CTA. Two modes: `focus=strategy` (build the funnel) and `focus=optimize` (tighten existing). Grounded via base agent RAG+skills.
