@@ -2,6 +2,20 @@
 
 ---
 
+## [2.1.0] — 2026-06-24 (Model Router + Media Engine + Skill System)
+
+### Added — Model Router (provider/model-agnostic)
+- `src/lib/router/` — PURE routing brain (no secrets, importable anywhere):
+  - `model-registry.js` — config-driven model catalog (FLUX/SDXL/upscale/bg-removal/Wan/Qwen/Kokoro/DALL·E) with quality/speed/cost/reliability scores + supportedTasks across all 16 media tasks
+  - `scoring-engine.js` — weighted `FinalScore`; `rankModels` (stable desc)
+  - `routing-rules.js` — `cheap`/`balanced`/`quality`/`speed` weight presets + task→type map
+  - `provider-registry.js` — provider metadata + runtime adapter injection
+  - `model-router.js` — `route()` (pure pick) + `generate()` (ranked-candidate fallback) + `setRoutingLogger()`
+- `api/_providers/router-adapters.js` — server bootstrap injecting real Runware/Fal/OpenAI adapters + the Supabase decision-logger (secrets stay server-side)
+- `api/media/engine.js` — `produceImage`/`editAsset`/`upscaleAsset`/`removeBgAsset` now route through the router (Media Engine never calls a provider directly)
+- `model_routing_log` table (schema_extension.sql) — logs every decision (task, provider, model, candidates, cost, duration, success) for future auto-learning
+- Verified: 10/10 selection cases pass — cheap→flux-schnell, quality→flux-dev, priority shifts winner
+
 ## [2.0.0-alpha] — 2026-06-23 (Autonomous Build Session)
 
 ### Added — Foundation (Priority 1)

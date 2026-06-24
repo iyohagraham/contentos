@@ -24,13 +24,9 @@
  *   _blob.js               : reuploadUrl, uploadBuffer, hasBlob
  */
 import { randomUUID } from 'node:crypto'
-import {
-  generateImage as runwareGenerateImage,
-  upscaleImage as runwareUpscaleImage,
-  removeBackground as runwareRemoveBackground,
-  editImage as runwareEditImage,
-  hasRunware
-} from '../_providers/runware.js'
+import { hasRunware } from '../_providers/runware.js'
+import { generate as routerGenerate } from '../../src/lib/router/model-router.js'
+import { ensureRouterReady } from '../_providers/router-adapters.js'
 import { buildManifest, FORMAT_DIMS } from '../_render/composition.js'
 import { renderComposition } from '../_render/index.js'
 import { generateThumbnail } from '../_render/ffmpeg.js'
@@ -159,7 +155,15 @@ export async function produceVideo({
  */
 export async function produceImage(prompt, opts = {}) {
   if (!prompt) throw new Error('produceImage: prompt is required')
-  const result = await runwareGenerateImage(prompt, opts)
+  ensureRouterReady()
+  const result = await routerGenerate({
+    type: 'image',
+    task: opts.task || 'social_image',
+    priority: opts.priority || 'balanced',
+    quality: opts.quality || 'standard',
+    prompt,
+    ...opts
+  })
   const url = await persistAsset(result.url, opts, 'jpg', 'image/jpeg')
   return { ...result, url }
 }
@@ -173,7 +177,16 @@ export async function produceImage(prompt, opts = {}) {
  */
 export async function editAsset(imageUrl, prompt, opts = {}) {
   if (!imageUrl) throw new Error('editAsset: imageUrl is required')
-  const result = await runwareEditImage(imageUrl, prompt, opts)
+  ensureRouterReady()
+  const result = await routerGenerate({
+    type: 'utility',
+    task: 'image_edit',
+    priority: opts.priority || 'balanced',
+    quality: opts.quality || 'standard',
+    imageUrl,
+    prompt,
+    ...opts
+  })
   const url = await persistAsset(result.url, opts, 'jpg', 'image/jpeg')
   return { ...result, url }
 }
@@ -186,7 +199,15 @@ export async function editAsset(imageUrl, prompt, opts = {}) {
  */
 export async function upscaleAsset(imageUrl, opts = {}) {
   if (!imageUrl) throw new Error('upscaleAsset: imageUrl is required')
-  const result = await runwareUpscaleImage(imageUrl, opts)
+  ensureRouterReady()
+  const result = await routerGenerate({
+    type: 'utility',
+    task: 'upscale',
+    priority: opts.priority || 'balanced',
+    quality: opts.quality || 'standard',
+    imageUrl,
+    ...opts
+  })
   const url = await persistAsset(result.url, opts, 'jpg', 'image/jpeg')
   return { ...result, url }
 }
@@ -199,7 +220,15 @@ export async function upscaleAsset(imageUrl, opts = {}) {
  */
 export async function removeBgAsset(imageUrl, opts = {}) {
   if (!imageUrl) throw new Error('removeBgAsset: imageUrl is required')
-  const result = await runwareRemoveBackground(imageUrl, opts)
+  ensureRouterReady()
+  const result = await routerGenerate({
+    type: 'utility',
+    task: 'background_removal',
+    priority: opts.priority || 'balanced',
+    quality: opts.quality || 'standard',
+    imageUrl,
+    ...opts
+  })
   // background removal yields a PNG (alpha preserved).
   const url = await persistAsset(result.url, opts, 'png', 'image/png')
   return { ...result, url }

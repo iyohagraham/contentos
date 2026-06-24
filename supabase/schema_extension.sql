@@ -923,3 +923,31 @@ CREATE TRIGGER campaigns_updated BEFORE UPDATE ON campaigns FOR EACH ROW EXECUTE
 CREATE TRIGGER content_calendar_updated BEFORE UPDATE ON content_calendar FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER competitor_analyses_updated BEFORE UPDATE ON competitor_analyses FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER channel_analyses_updated BEFORE UPDATE ON channel_analyses FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================
+-- MODEL ROUTER — routing decision log (foundation for future auto-learning)
+-- ============================================
+CREATE TABLE IF NOT EXISTS model_routing_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  task TEXT,
+  task_type TEXT,
+  priority TEXT,
+  quality TEXT,
+  provider TEXT,
+  model TEXT,
+  candidates JSONB DEFAULT '[]',
+  selected_score NUMERIC,
+  cost_usd NUMERIC,
+  duration_ms INT,
+  success BOOLEAN,
+  error TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_model_routing_log_task ON model_routing_log (task, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_model_routing_log_model ON model_routing_log (model, created_at DESC);
+
+ALTER TABLE model_routing_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "workspace_owner" ON model_routing_log FOR ALL USING (
+  workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid())
+);
