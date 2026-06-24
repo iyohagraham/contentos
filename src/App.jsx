@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  LayoutDashboard, Target, Video, Instagram, Youtube, 
-  Facebook, TrendingUp, DollarSign, Settings, Plus, Calendar, 
-  BarChart3, Layers, Zap, Sparkles, Clock, ChevronRight, Star, 
+import {
+  LayoutDashboard, Target, Video, Instagram, Youtube,
+  Facebook, TrendingUp, DollarSign, Settings, Plus, Calendar,
+  BarChart3, Layers, Zap, Sparkles, Clock, ChevronRight, Star,
   Users, Eye, MousePointerClick, ShoppingCart, FileText,
   Globe, Upload, Check, X as XIcon, Menu, ArrowUpRight,
   Film, Mic, Palette, Send, Play, Hash, Clock as ClockIcon,
@@ -10,13 +10,19 @@ import {
   Link as LinkIcon, Package, CreditCard, TrendingDown, Calendar as CalendarIcon,
   MessageSquare, ThumbsUp, Share2, Bookmark, MoreVertical, Filter, Search,
   Smartphone, Monitor, Tv, Hash as HashIcon, Brain, Lightbulb, Wand2,
-  Database, HardDrive, RefreshCw
+  Database, HardDrive, RefreshCw, Bot, BookOpen
 } from 'lucide-react'
 import { useChannels, useVideos, useProducts, useStrategies, useDbMode } from './lib/db/useStore.js'
 import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format.js'
 import { resetData } from './lib/db/seed.js'
 import { postiz } from './lib/postizClient.js'
 import { authEnabled, signOut } from './lib/auth.js'
+import KnowledgeView from './views/KnowledgeView.jsx'
+import ResearchView from './views/ResearchView.jsx'
+import IntelligenceView from './views/IntelligenceView.jsx'
+import AgentsView from './views/AgentsView.jsx'
+
+const DEFAULT_WORKSPACE_ID = 'default'
 
 const PLATFORMS = {
   tiktok: { name: 'TikTok', icon: '♫', color: 'black', bg: 'bg-black' },
@@ -67,6 +73,11 @@ function App() {
           <NavItem icon={BarChart3} label="Analytics" active={activeView === 'analytics'} onClick={() => setActiveView('analytics')} expanded={sidebarOpen} />
           <NavItem icon={DollarSign} label="Monetize" active={activeView === 'monetize'} onClick={() => setActiveView('monetize')} expanded={sidebarOpen} />
           <NavItem icon={Globe} label="Channels" active={activeView === 'channels'} onClick={() => setActiveView('channels')} expanded={sidebarOpen} />
+          {sidebarOpen && <div className="px-3 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-semibold">Intelligence</div>}
+          <NavItem icon={Brain} label="Knowledge" active={activeView === 'knowledge'} onClick={() => setActiveView('knowledge')} expanded={sidebarOpen} />
+          <NavItem icon={Search} label="Research" active={activeView === 'research'} onClick={() => setActiveView('research')} expanded={sidebarOpen} />
+          <NavItem icon={Zap} label="Intelligence" active={activeView === 'intelligence'} onClick={() => setActiveView('intelligence')} expanded={sidebarOpen} />
+          <NavItem icon={Bot} label="Agents" active={activeView === 'agents'} onClick={() => setActiveView('agents')} expanded={sidebarOpen} />
         </nav>
         <div className="p-3 border-t border-slate-800 space-y-2">
           <NavItem icon={Settings} label="Settings" active={activeView === 'settings'} onClick={() => setActiveView('settings')} expanded={sidebarOpen} />
@@ -96,6 +107,10 @@ function App() {
           {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
           {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
+          {activeView === 'knowledge' && <KnowledgeView workspaceId={DEFAULT_WORKSPACE_ID} />}
+          {activeView === 'research' && <ResearchView workspaceId={DEFAULT_WORKSPACE_ID} />}
+          {activeView === 'intelligence' && <IntelligenceView workspaceId={DEFAULT_WORKSPACE_ID} />}
+          {activeView === 'agents' && <AgentsView workspaceId={DEFAULT_WORKSPACE_ID} />}
         </main>
       </div>
     </div>
