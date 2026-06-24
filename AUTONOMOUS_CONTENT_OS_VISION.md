@@ -2993,4 +2993,1307 @@ KALS is built as part of **Phase 1** (alongside the Research Intelligence Engine
 
 ---
 
+## 17. Channel Intelligence Engine (CIE)
+
+### Purpose
+
+The Channel Intelligence Engine is ContentOS's competitive reverse-engineering system. It takes any successful channel — on any platform — and disassembles it into its constituent parts: the DNA that makes it work, the formulas it uses repeatedly, the monetization strategy it follows, the growth mechanics it exploits.
+
+Those parts become structured, reusable blueprints that the operator can apply to their own brand — verbatim, adapted for a different niche, transferred to a different platform, or merged to create something entirely new.
+
+**The core insight:** most successful channels are not unique — they are combinations of proven patterns executed consistently. CIE makes those patterns visible, extractable, and transferable.
+
+---
+
+### Supported Sources
+
+| Source | Data Accessible | Primary Collection Method |
+|---|---|---|
+| YouTube Channels | Videos, titles, descriptions, thumbnails, transcripts, view/sub counts, posting cadence, chapters, tags, revenue signals | YouTube Data API v3 + `yt-dlp` (transcript) |
+| TikTok Accounts | Videos, captions, sounds, hashtags, engagement, posting times, effect usage, duet/stitch patterns | Apify TikTok Scraper |
+| Instagram Accounts | Reels, posts, stories highlights, captions, hashtags, engagement, carousel usage, bio links | Apify Instagram Scraper |
+| X Accounts | Posts, threads, engagement, reply patterns, link behavior, content types | X API v2 |
+| Blogs | Articles, headlines, structure, word counts, topic clusters, internal linking, CTAs | Firecrawl |
+| Newsletters | Subject lines, preview text, structure, content type, CTAs, send frequency, estimated subscribers | Firecrawl + email archive scrape |
+
+---
+
+### Architecture Overview
+
+```
+Operator provides channel URL(s)
+         │
+         ▼
+┌────────────────────────────────────────────────────────────┐
+│                   DATA COLLECTION LAYER                      │
+│  Platform-specific scrapers → normalized ChannelDataset      │
+│  Last 50-100 posts / videos / articles per channel          │
+│  Thumbnail images → Blob storage for Vision analysis        │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                   ANALYSIS LAYER                             │
+│  1. Content Pillar Extraction                               │
+│  2. Posting Pattern Analysis                                │
+│  3. Format & Length Analysis                                │
+│  4. Title Structure Analysis                                │
+│  5. Hook Structure Analysis                                 │
+│  6. Storytelling Pattern Analysis    (from transcripts)     │
+│  7. Thumbnail Style Analysis         (GPT-4o Vision)        │
+│  8. Monetization Signal Analysis                            │
+│  9. Audience Targeting Analysis                             │
+│  10. Engagement Velocity Analysis                           │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                   DNA EXTRACTION LAYER                       │
+│  Channel Blueprint · Content Blueprint                       │
+│  Monetization Blueprint · Growth Blueprint                  │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                   PLAYBOOK GENERATION LAYER                  │
+│  Title Formulas · Hook Formulas · CTA Formulas              │
+│  Thumbnail Formulas · Content Structures                    │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+                    ▼                 ▼
+         ┌───────────────┐  ┌──────────────────────┐
+         │ Knowledge Base│  │   Version Builder     │
+         │ (KALS §16)    │  │  (transform + apply)  │
+         └───────────────┘  └──────────────────────┘
+                    │                 │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+       Strategy Agent  Planning Engine  Writing Agent
+       (grounds new   (uses playbooks  (applies title/
+        brands in      for content      hook formulas)
+        channel DNA)   queue)
+```
+
+---
+
+### 1. Channel Analysis
+
+#### Data Collection
+
+When an operator submits a channel for analysis, CIE dispatches a collection job that fetches the most recent 50-100 content items and all available metadata:
+
+```typescript
+interface ChannelDataset {
+  channel: {
+    url: string
+    platform: Platform
+    handle: string
+    display_name: string
+    subscriber_count: bigint
+    total_content_count: int
+    channel_age_days: int
+    bio: string
+    links: string[]             // linktree, product links in bio
+    monetization_signals: string[] // "link in bio", "merch shelf", "sponsor mentions"
+  }
+  content_items: ContentItem[]  // last 50-100 pieces
+}
+
+interface ContentItem {
+  external_id: string
+  platform: Platform
+  title: string               // or caption for short-form
+  description: string
+  published_at: timestamp
+  
+  // Performance
+  views: bigint
+  likes: int
+  comments: int
+  shares: int
+  saves: int
+  
+  // Format
+  duration_s: int
+  format: string              // short/long/article/thread/newsletter
+  
+  // Content
+  thumbnail_url: string       // downloaded to Blob for Vision analysis
+  transcript: string          // if transcribed
+  hashtags: string[]
+  tags: string[]
+  chapters: { title: string, start_s: int }[]
+  
+  // Derived (populated by analysis)
+  hook: string                // first 3-7 seconds / opening line
+  cta: string                 // closing call-to-action
+  topics: string[]
+  virality_score: float
+}
+```
+
+#### Ten Analysis Dimensions
+
+**1. Content Pillar Extraction**
+
+Clusters all content items by topic using embeddings + K-means. Identifies the 4-6 recurring themes that define the channel. Weights by view count (high-view topics get more pillar weight).
+
+```typescript
+ContentPillarAnalysis {
+  pillars: [{
+    name: string              // "Wealth Building Basics"
+    topic_keywords: string[]  // extracted cluster centroid terms
+    content_count: int        // pieces in this pillar
+    pct_of_output: float      // % of total content
+    avg_views: int
+    top_performer: ContentItem
+    posting_pattern: string   // "2x/week" "every Monday"
+  }]
+  primary_pillar: string      // highest volume/views
+  gap_pillars: string[]       // topics in niche they DON'T cover
+}
+```
+
+**2. Posting Pattern Analysis**
+
+```typescript
+PostingPatternAnalysis {
+  avg_posts_per_week: float
+  posting_consistency_score: float  // 0-1 (1 = same days every week)
+  best_performing_days: string[]    // ["Tuesday", "Thursday"]
+  best_performing_hours: int[]      // [18, 19, 20] (UTC)
+  cadence_type: string              // "daily" | "MWF" | "weekly" | "burst"
+  longest_streak_days: int
+  avg_gap_between_posts_hours: float
+  seasonal_patterns: string[]       // "posts more in Jan/Feb"
+}
+```
+
+**3. Format & Length Analysis**
+
+```typescript
+FormatAnalysis {
+  formats_used: {
+    format: string            // "talking_head" | "b_roll" | "screen_record" | "animation"
+    pct_of_output: float
+    avg_views: int
+  }[]
+  length_distribution: {
+    bucket: string            // "<60s" | "1-5min" | "5-15min" | "15-30min" | ">30min"
+    count: int
+    avg_views: int
+  }[]
+  optimal_length_seconds: int   // length bucket with highest avg views
+  uses_chapters: boolean
+  avg_chapters_per_video: float
+  uses_thumbnails_text: boolean
+  avg_words_in_title: float
+}
+```
+
+**4. Title Structure Analysis**
+
+The AI analyzes all titles and extracts repeating structural formulas:
+
+```
+Sample titles analyzed:
+  "I Built a $10K/Month Business in 30 Days"
+  "How I Made $5,000 on YouTube Last Month"
+  "This Side Hustle Made Me $2,000 in One Weekend"
+  "I Tried 5 Side Hustles for 30 Days (Here's What Happened)"
+
+Extracted formula: "I {verb+past_tense} ${amount} in {timeframe}"
+Variations:       "How I {verb+past_tense} ${amount}"
+Pattern:          Personal achievement + specific number + specific timeframe
+Emotional hook:   Aspiration / proof / specificity
+```
+
+```typescript
+TitleAnalysis {
+  formulas: [{
+    pattern: string           // "I {verb} ${amount} in {timeframe}"
+    template: string          // fill-in-the-blank version
+    example_titles: string[]  // 3 real examples from the channel
+    frequency: int            // how many titles match this formula
+    avg_views: int            // avg views on titles using this formula
+    emotional_trigger: string // "aspiration" | "curiosity" | "fear" | "status"
+  }]
+  dominant_formula: string
+  avg_words: float
+  uses_numbers: boolean
+  uses_brackets: boolean       // "[REVEALED]", "(Proof)"
+  uses_all_caps_words: boolean
+  question_pct: float          // % of titles that are questions
+  power_words: string[]        // high-frequency impact words
+}
+```
+
+**5. Hook Structure Analysis**
+
+Analyzes the first 3-7 seconds of each video (from transcript) to identify opening patterns:
+
+```typescript
+HookAnalysis {
+  hook_types_used: {
+    type: string              // question | stat | story | controversy | list | future_pacing
+    pct_of_videos: float
+    avg_views: int
+  }[]
+  dominant_hook_type: string
+  hook_formulas: [{
+    structure: string         // "Did you know {shocking_fact}? In this video I'll show you..."
+    example: string           // verbatim from a high-performing video
+    avg_views_on_videos_using: int
+  }[]
+  avg_hook_duration_s: float
+  hook_to_body_transition: string   // how they bridge hook → content
+  opening_word_patterns: string[]   // "So", "Alright", "I want to be honest with you..."
+}
+```
+
+**6. Storytelling Pattern Analysis**
+
+Reads full transcripts of top-10 performing videos. Extracts narrative architecture:
+
+```typescript
+StorytellingAnalysis {
+  narrative_structure: string     // "problem → agitate → solve" | "before → after → bridge"
+  avg_structure_sections: int
+  uses_personal_stories: boolean
+  story_formula: string           // "Setup (30s) → Conflict (60s) → Teaching (3m) → CTA (30s)"
+  tension_techniques: string[]    // "cliffhanger at 2min", "open loops"
+  pacing: string                  // "fast" | "medium" | "slow" | "variable"
+  language_complexity: string     // "simple" | "technical" | "academic"
+  vocabulary_profile: {
+    reading_level: string         // "8th grade" | "college"
+    jargon_level: float           // 0-1
+    contractions_used: boolean
+    second_person_pct: float      // "you" usage rate
+  }
+  recurring_phrases: string[]     // catchphrases, sign-offs
+}
+```
+
+**7. Thumbnail Style Analysis**
+
+GPT-4o Vision analyzes a sample of 20+ thumbnails and extracts visual patterns:
+
+```typescript
+ThumbnailAnalysis {
+  dominant_style: string          // "face_reaction" | "text_heavy" | "before_after" | "minimal"
+  color_palette: {
+    primary: string               // hex
+    secondary: string
+    accent: string
+    background: string
+  }
+  layout_patterns: [{
+    name: string                  // "face left, text right"
+    frequency: float
+    visual_elements: string[]     // ["shocked face", "red arrow", "dollar bills"]
+  }]
+  text_usage: {
+    avg_word_count: float
+    font_style: string            // "bold sans-serif" | "hand-written" | "clean minimal"
+    text_placement: string        // "top", "bottom", "right-third"
+    contrast_approach: string     // "white on dark", "yellow on red"
+  }
+  emotional_expression: string[]  // "shock", "excitement", "curiosity", "authority"
+  uses_arrows: boolean
+  uses_circles_callouts: boolean
+  uses_person: boolean
+  person_expression: string       // "open-mouth surprise" | "confident smirk"
+  image_prompt_keywords: string[] // direct FLUX prompt terms extracted from analysis
+}
+```
+
+**8. Monetization Signal Analysis**
+
+Infers the channel's business model from visible signals:
+
+```typescript
+MonetizationAnalysis {
+  detected_methods: [{
+    method: string              // "digital_course" | "affiliate" | "sponsorship" | "membership"
+    confidence: float           // 0-1
+    evidence: string[]          // "mentions 'my course' in 80% of videos", "Skillshare promo at 3:00"
+    estimated_price_range: string
+  }]
+  cta_placement_in_video: string[] // "end screen", "mid-roll at 4:00", "description link"
+  cta_frequency: float           // CTAs per video on average
+  primary_funnel_stage: string   // "awareness" | "consideration" | "conversion"
+  product_category: string       // "education" | "tools" | "community" | "services"
+  affiliate_brands_detected: string[]
+  sponsorship_frequency: string  // "every video" | "monthly" | "rare"
+  estimated_cpm_niche: string    // "high ($15-25)" | "medium ($5-15)" | "low (<$5)"
+}
+```
+
+**9. Audience Targeting Analysis**
+
+Infers the target audience from language, topics, thumbnails, and comment analysis:
+
+```typescript
+AudienceAnalysis {
+  primary_demographics: {
+    age_range: string           // "18-34"
+    gender_skew: string         // "male-skewed" | "female-skewed" | "balanced"
+    income_level: string        // "aspirational middle" | "high-earner" | "entry-level"
+    life_stage: string          // "student" | "early-career" | "mid-career" | "parent"
+  }
+  psychographics: {
+    primary_desire: string      // "financial freedom" | "status" | "security" | "belonging"
+    primary_fear: string        // "being left behind" | "failure" | "wasted time"
+    worldview: string           // "hustle culture" | "minimalist" | "traditional"
+    sophistication_level: string // "beginner" | "intermediate" | "advanced"
+  }
+  language_signals: string[]    // vocabulary that reveals audience ("9-to-5", "passive income")
+  community_signals: string[]   // communities this audience also frequents
+  pain_points_addressed: string[]
+}
+```
+
+**10. Engagement Velocity Analysis**
+
+Identifies which content types and topics generate the fastest initial engagement:
+
+```typescript
+EngagementVelocityAnalysis {
+  fastest_growing_content_type: string  // format + topic combo that spikes fastest
+  viral_triggers: string[]             // "uses controversy", "makes bold claim in title"
+  comment_sentiment: string            // "mostly positive" | "debate-heavy" | "loyal"
+  share_rate_by_topic: { topic: string, rate: float }[]
+  subscriber_conversion_topics: string[] // topics that correlate with subscriber spikes
+}
+```
+
+---
+
+### 2. Channel DNA Extraction
+
+After all ten analysis dimensions complete, the DNA Extraction Agent synthesizes them into four structured blueprints. This is the core deliverable — the distillation of *why the channel works*.
+
+#### Channel Blueprint
+
+```typescript
+ChannelBlueprint {
+  // Core identity
+  core_promise: string          // "I show young men exactly how to escape the 9-5 with online income"
+  unique_angle: string          // what differentiates this channel from generic competitors
+  brand_voice: string           // "direct, data-driven, no-BS, personal"
+  positioning: string           // "aspirational peer" | "trusted expert" | "entertaining guide"
+  
+  // Audience
+  primary_audience: AudienceProfile
+  secondary_audience: AudienceProfile
+  
+  // Niche
+  niche: string
+  sub_niche: string
+  competitive_moat: string      // what would be hard for a copycat to replicate
+  
+  // Content identity
+  signature_elements: string[]  // things instantly recognizable: intro style, catchphrase, visual palette
+}
+```
+
+#### Content Blueprint
+
+```typescript
+ContentBlueprint {
+  pillars: ContentPillar[]      // from ContentPillarAnalysis
+  content_mix: {
+    format: string
+    pct: float
+    cadence: string
+  }[]
+  posting_schedule: PostingSchedule  // from PostingPatternAnalysis
+  optimal_content_length: {
+    platform: Platform
+    seconds: int
+    reason: string
+  }[]
+  evergreen_topics: string[]    // timeless topics that perform consistently
+  trending_topics: string[]     // topics tied to current events/trends
+  seasonal_opportunities: string[]
+  content_series: {             // recurring series on the channel
+    name: string
+    format: string
+    posting_frequency: string
+    performance: string
+  }[]
+}
+```
+
+#### Monetization Blueprint
+
+```typescript
+MonetizationBlueprint {
+  primary_revenue_stream: string
+  revenue_streams: {
+    method: string
+    estimated_priority: int     // 1=primary, 2=secondary
+    channel_audience_threshold: string  // "works from 1K subs" | "needs 10K+"
+    cta_strategy: string
+    implementation: string      // "promote in end screen + description link"
+  }[]
+  funnel_structure: {
+    awareness_content: string   // what content type brings new viewers
+    consideration_content: string // what converts viewers to followers
+    conversion_content: string  // what converts followers to customers
+  }
+  avg_content_to_sale_lag: string  // "viewers typically buy after 3-5 videos"
+  price_points_used: string[]
+  launch_strategy: string       // how they launch new products
+}
+```
+
+#### Growth Blueprint
+
+```typescript
+GrowthBlueprint {
+  primary_growth_mechanism: string   // "SEO", "viral hooks", "collaborations", "consistency"
+  seo_strategy: {
+    title_keyword_placement: string  // "keyword in first 3 words"
+    description_structure: string
+    tag_strategy: string
+    chapter_optimization: boolean
+  }
+  virality_mechanics: string[]       // specific things that make content spread
+  collaboration_patterns: string[]   // who they collab with and how
+  platform_cross_promotion: string[] // how they use other platforms to drive to primary
+  community_building: string         // Discord, newsletter, community tab approach
+  growth_rate_trajectory: string     // "slow build → compound spike" | "consistent linear"
+  key_inflection_point: string       // what they did that caused significant growth
+}
+```
+
+---
+
+### 3. Playbook Generation
+
+After DNA extraction, the Playbook Generator creates directly usable formulas — not summaries, but actual fill-in templates that can be applied immediately to new content.
+
+#### Title Playbook
+
+```typescript
+TitlePlaybook {
+  workspace_id: uuid
+  source_channel_id: uuid
+  formulas: [{
+    id: uuid
+    formula: string             // "I {verb} ${amount} in {timeframe} with {method}"
+    variables: {                // what to fill in
+      verb: string[]            // ["made", "earned", "built", "grew"]
+      amount: string            // "${X}" — specific dollar figure
+      timeframe: string         // "30 days", "one weekend", "6 months"
+      method: string            // "no experience", "one skill", "$0 investment"
+    }
+    examples: string[]          // 3 real titles from the source channel
+    avg_views: int              // performance of this formula in source
+    emotional_trigger: string
+    best_for: string            // "awareness" | "search" | "viral"
+    
+    // Adaptation: applying the formula to a different niche
+    niche_adaptation_guide: string  // "Replace income with [niche result], method with [niche method]"
+    adapted_example: string         // "I Lost 20 lbs in 30 Days with Zero Gym Equipment"
+  }]
+}
+```
+
+#### Hook Playbook
+
+```typescript
+HookPlaybook {
+  formulas: [{
+    id: uuid
+    type: string                // "shocking_stat" | "personal_confession" | "future_pace" | "bold_claim"
+    structure: string           // "[Shocking claim]. And in this video, I'm going to show you exactly how."
+    variables: Record<string, string[]>  // fill-in slots
+    example_verbatim: string    // word-for-word example from source channel transcript
+    duration_target_s: int
+    avg_retention_lift: string  // "videos using this hook retain 15% more viewers at 30s"
+    adaptation: string          // how to use for a different niche
+  }]
+  transition_formulas: string[] // how they bridge hook → content body
+  opening_energy: string        // "high energy open" | "calm authoritative" | "vulnerable"
+}
+```
+
+#### CTA Playbook
+
+```typescript
+CTAPlaybook {
+  formulas: [{
+    cta_type: string            // "subscribe" | "product" | "email" | "comment" | "share"
+    placement: string           // "end_screen" | "mid_roll_3min" | "description_line_1"
+    script: string              // "If this helped you, smash that subscribe — I post every Tuesday"
+    soft_vs_hard: string        // "soft" (low pressure) | "hard" (direct ask)
+    avg_conversion_context: string
+    adaptation: string
+  }]
+  cta_stack: string             // "they stack 3 CTAs: comment + subscribe + link"
+  primary_cta_position_seconds: int
+}
+```
+
+#### Thumbnail Playbook
+
+```typescript
+ThumbnailPlaybook {
+  layouts: [{
+    name: string                // "Face Left + Bold Text Right"
+    description: string
+    elements: string[]          // ["expressive face", "dollar amount in yellow", "dark background"]
+    image_generation_prompt: string  // ready-to-use FLUX prompt
+    color_palette: { primary: string, secondary: string, text: string }
+    emotional_target: string    // "curiosity" | "aspiration" | "authority"
+    best_for_topic: string      // "income proof" | "tutorial" | "opinion"
+  }]
+  text_overlay_formulas: string[]   // "Number + Outcome", "Question format", "One word shock"
+  face_expression_guide: string     // "open-mouth surprise for income reveals, confident for tutorials"
+  do_not_do: string[]               // common mistakes this channel avoids
+}
+```
+
+#### Content Structure Playbook
+
+```typescript
+ContentStructurePlaybook {
+  structures: [{
+    name: string                // "The Income Proof Structure"
+    total_duration_s: int
+    sections: [{
+      name: string              // "Hook"
+      duration_s: int
+      purpose: string           // "establish credibility + hook viewer"
+      script_guidance: string   // "Lead with the specific result. State it directly."
+      transition_to_next: string
+    }]
+    best_for: string            // "income reveal videos, transformation stories"
+    adaptation: string
+  }]
+}
+```
+
+---
+
+### 4. Version Builder
+
+The Version Builder applies channel DNA + playbooks to create new channel concepts. It is the creative transformation engine — taking what works and redirecting it.
+
+#### Version Types
+
+```typescript
+type VersionType =
+  | "similar"           // same niche, same audience, execute slightly better
+  | "improved"          // same channel but with identified weaknesses fixed
+  | "niche_transfer"    // same content DNA, different niche
+  | "audience_transfer" // same topics, different target audience
+  | "platform_transfer" // same strategy, different platform
+  | "style_transfer"    // take one channel's style, apply to different content
+  | "hybrid"            // merge DNA from two different channels
+```
+
+#### Version Builder Prompt Interface
+
+The operator submits a Version Brief:
+
+```typescript
+VersionBrief {
+  source_channel_ids: uuid[]      // 1-3 channels to draw from
+  version_type: VersionType
+  transformation: {
+    
+    // For niche_transfer:
+    source_niche: string          // "personal finance"
+    target_niche: string          // "business / entrepreneurship"
+    keep: string[]                // ["title formulas", "hook style", "posting cadence"]
+    adapt: string[]               // ["content pillars", "monetization angle"]
+    
+    // For audience_transfer:
+    source_audience: string       // "young men 18-25"
+    target_audience: string       // "women 30-45 returning to workforce"
+    keep: string[]                // ["storytelling structure", "monetization method"]
+    adapt: string[]               // ["language register", "pain points", "visual style"]
+    
+    // For platform_transfer:
+    source_platform: Platform     // "youtube"
+    target_platform: Platform     // "tiktok"
+    content_adaptation_rules: string  // "compress 10-min YouTube into 60s TikTok: keep hook + single insight + CTA"
+    
+    // For style_transfer:
+    style_donor_channel_id: uuid  // "take MrBeast thumbnail style"
+    content_recipient_channel_id: uuid // "apply to real estate channel"
+    style_elements: string[]      // which style dimensions to transfer
+    
+    // For hybrid:
+    blend_ratios: {
+      channel_id: uuid
+      weight: float               // 0-1, must sum to 1.0
+      contribute: string[]        // which dimensions this channel contributes
+    }[]
+  }
+  target_brief: Partial<BusinessBrief>  // optional overrides
+}
+```
+
+#### Version Output
+
+```typescript
+ChannelVersion {
+  id: uuid
+  workspace_id: uuid
+  version_type: VersionType
+  source_channel_ids: uuid[]
+  
+  // The generated channel concept
+  concept: {
+    working_title: string          // "IncomeJump — Business Builder for Corporate Escapees"
+    core_promise: string
+    unique_angle: string
+    audience: AudienceProfile
+    niche: string
+    competitive_moat: string
+  }
+  
+  // Adapted blueprints
+  channel_blueprint: ChannelBlueprint
+  content_blueprint: ContentBlueprint
+  monetization_blueprint: MonetizationBlueprint
+  growth_blueprint: GrowthBlueprint
+  
+  // Adapted playbooks
+  title_playbook: TitlePlaybook    // formulas translated to new niche/audience/platform
+  hook_playbook: HookPlaybook
+  thumbnail_playbook: ThumbnailPlaybook
+  content_structure_playbook: ContentStructurePlaybook
+  
+  // Diff from source
+  what_is_kept: string[]           // "title formula structure, posting cadence, monetization via course"
+  what_is_changed: string[]        // "niche (finance → business), thumbnail palette, language register"
+  key_risks: string[]              // "business niche is more competitive; differentiation harder"
+  recommended_first_10_videos: {
+    title: string
+    pillar: string
+    format: string
+    hook_type: string
+  }[]
+  
+  // Ready to activate
+  can_seed_workspace: boolean      // true once operator accepts the version
+  strategy_draft: Partial<Strategy>
+  
+  created_at: timestamptz
+}
+```
+
+#### Version Builder Examples
+
+**"Turn this finance channel into a business channel"**
+```
+Source: [Finance Freedom YouTube channel]
+Type: niche_transfer
+Source niche: personal finance (saving, investing, FIRE)
+Target niche: business building (side hustles, solopreneurship, B2B)
+Keep: title formula ("I {verb}d ${amount} in {timeframe}"), hook style (shocking stat → explanation), 
+      posting cadence (3x/week), monetization method (digital course)
+Adapt: content pillars (savings→revenue), audience pain points (debt→stagnant income),
+       thumbnail emotion (stressed face → confident founder)
+
+Output: "BusinessStack" channel — "I Built $X/Month in {timeframe} with {method}"
+        Same formula, different vocabulary. Audience: corporate employees wanting out.
+```
+
+**"Turn this YouTube strategy into a TikTok strategy"**
+```
+Source: [15-min YouTube channel on stoicism]
+Type: platform_transfer
+Source: YouTube (15-min explainers, chapter structure, long hook)
+Target: TikTok (60s, single insight, pattern interrupt hook)
+Adaptation rules:
+  - 15 min → 60 sec: keep ONE insight per video (not 5)
+  - Chapter structure → single narrative arc: setup (5s) → insight (40s) → CTA (15s)
+  - Long hook (30s) → pattern interrupt (3s max): "Stoics solved anxiety 2,000 years ago. Here's how."
+  - Thumbnail → first frame: high-contrast text on screen first 2 frames
+
+Output: TikTok playbook with 60s content structure, first-frame visual formula,
+        adapted title formulas (captions), hook reformulations
+```
+
+**"Use this storytelling style for a history channel"**
+```
+Source: [True crime podcast-style YouTube channel]
+Type: style_transfer
+Style donor: storytelling structure (cold open mystery → slow reveal → twist → moral)
+Recipient content: history channel
+Style elements to transfer: narrative tension, cliffhanger transitions, character-first framing
+
+Output: History channel concept that opens each video with a character in crisis
+        ("In 1944, a 22-year-old codebreaker held a secret that would change the war."),
+        builds tension through unknown outcome, uses documentary pacing.
+        Thumbnail formula: dramatic archival photo + one-word intrigue ("BETRAYED").
+```
+
+---
+
+### 5. Database Schema
+
+```sql
+-- CHANNEL ANALYSES (top-level record per analyzed channel)
+CREATE TABLE channel_analyses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  
+  -- Source
+  platform text NOT NULL,
+  channel_url text NOT NULL,
+  handle text,
+  display_name text,
+  external_channel_id text,
+  subscriber_count bigint,
+  total_content_count int,
+  channel_age_days int,
+  
+  -- Collection
+  items_collected int,
+  collection_status text DEFAULT 'queued',  -- queued/collecting/analyzing/complete/failed
+  collection_error text,
+  
+  -- Analysis results (each dimension stored as JSONB)
+  pillar_analysis jsonb,
+  posting_pattern jsonb,
+  format_analysis jsonb,
+  title_analysis jsonb,
+  hook_analysis jsonb,
+  storytelling_analysis jsonb,
+  thumbnail_analysis jsonb,
+  monetization_analysis jsonb,
+  audience_analysis jsonb,
+  engagement_velocity jsonb,
+  
+  -- DNA
+  channel_blueprint jsonb,
+  content_blueprint jsonb,
+  monetization_blueprint jsonb,
+  growth_blueprint jsonb,
+  
+  -- Embedding of channel summary (for similarity search: "find channels like this")
+  embedding vector(1536),
+  
+  -- Operator metadata
+  operator_notes text,
+  tags text[],
+  
+  analyzed_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON channel_analyses USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+
+-- CHANNEL CONTENT SAMPLES (individual posts/videos collected during analysis)
+CREATE TABLE channel_content_samples (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  channel_analysis_id uuid NOT NULL REFERENCES channel_analyses(id) ON DELETE CASCADE,
+  
+  external_id text,
+  platform text,
+  title text,
+  description text,
+  published_at timestamptz,
+  duration_s int,
+  format text,
+  
+  -- Metrics
+  views bigint,
+  likes int,
+  comments int,
+  shares int,
+  virality_score float,
+  
+  -- Content
+  thumbnail_url text,
+  thumbnail_blob_url text,        -- our copy in Blob
+  transcript text,
+  hook text,
+  cta text,
+  topics text[],
+  hashtags text[],
+  
+  -- AI extraction
+  title_formula_match text,        -- which formula this title follows
+  hook_type text,
+  storytelling_structure text,
+  thumbnail_layout text,
+  
+  created_at timestamptz DEFAULT now()
+);
+
+-- CHANNEL PLAYBOOKS (extracted formulas ready to use)
+CREATE TABLE channel_playbooks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  channel_analysis_id uuid NOT NULL REFERENCES channel_analyses(id) ON DELETE CASCADE,
+  
+  playbook_type text NOT NULL,    -- title/hook/cta/thumbnail/content_structure
+  name text,                       -- "Title Playbook for @FinancialFreedomYT"
+  
+  -- All formulas for this type
+  formulas jsonb NOT NULL,        -- array of typed formula objects
+  
+  -- Summary stats
+  formula_count int,
+  top_formula_avg_views int,
+  
+  -- For agent retrieval
+  embedding vector(1536),
+  category text,                  -- knowledge category
+  platform text,
+  niche text,
+  
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON channel_playbooks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+
+-- CHANNEL VERSIONS (Version Builder outputs)
+CREATE TABLE channel_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  version_type text NOT NULL,
+  source_channel_ids uuid[],
+  version_brief jsonb,
+  
+  -- Generated concept
+  concept jsonb,
+  channel_blueprint jsonb,
+  content_blueprint jsonb,
+  monetization_blueprint jsonb,
+  growth_blueprint jsonb,
+  
+  -- Adapted playbooks (denormalized for fast access)
+  title_playbook jsonb,
+  hook_playbook jsonb,
+  thumbnail_playbook jsonb,
+  content_structure_playbook jsonb,
+  
+  -- Diff + validation
+  what_is_kept text[],
+  what_is_changed text[],
+  key_risks text[],
+  recommended_first_10_videos jsonb,
+  
+  -- Status
+  status text DEFAULT 'draft',    -- draft/accepted/seeded/archived
+  workspace_seeded_at timestamptz, -- when operator accepted + seeded into workspace
+  
+  -- Embedding (for version similarity search)
+  embedding vector(1536),
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- CHANNEL INTELLIGENCE JOBS
+CREATE TABLE channel_intelligence_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  channel_analysis_id uuid REFERENCES channel_analyses(id),
+  job_type text NOT NULL,         -- collect/analyze/dna_extract/playbook_gen/version_build
+  status text DEFAULT 'queued',
+  stage text,
+  progress_pct int DEFAULT 0,
+  result jsonb,
+  error text,
+  attempts int DEFAULT 0,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+**Semantic search functions:**
+
+```sql
+-- Find channels similar to a given channel (for "analyze channels like this one")
+CREATE OR REPLACE FUNCTION match_similar_channels(
+  query_embedding vector(1536),
+  workspace_id uuid,
+  platform_filter text DEFAULT NULL,
+  match_count int DEFAULT 5
+) RETURNS TABLE (id uuid, display_name text, platform text, niche text, similarity float)
+LANGUAGE sql STABLE AS $$
+  SELECT ca.id, ca.display_name, ca.platform,
+         ca.channel_blueprint->>'niche' AS niche,
+         1 - (ca.embedding <=> query_embedding) AS similarity
+  FROM channel_analyses ca
+  WHERE ca.workspace_id = match_similar_channels.workspace_id
+    AND ca.collection_status = 'complete'
+    AND (platform_filter IS NULL OR ca.platform = platform_filter)
+  ORDER BY ca.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+
+-- Find playbooks matching a retrieval query
+CREATE OR REPLACE FUNCTION match_channel_playbooks(
+  query_embedding vector(1536),
+  workspace_id uuid,
+  playbook_type_filter text DEFAULT NULL,
+  match_count int DEFAULT 5
+) RETURNS TABLE (id uuid, playbook_type text, name text, formulas jsonb, similarity float)
+LANGUAGE sql STABLE AS $$
+  SELECT cp.id, cp.playbook_type, cp.name, cp.formulas,
+         1 - (cp.embedding <=> query_embedding) AS similarity
+  FROM channel_playbooks cp
+  WHERE cp.workspace_id = match_channel_playbooks.workspace_id
+    AND (playbook_type_filter IS NULL OR cp.playbook_type = playbook_type_filter)
+  ORDER BY cp.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+---
+
+### 6. KALS Integration
+
+All CIE outputs are automatically cross-posted into the Knowledge Base (KALS §16) as typed knowledge objects. This means playbooks and blueprints become retrievable by the same semantic search that retrieves uploaded PDF frameworks.
+
+```typescript
+// After channel analysis completes, auto-export to KALS
+async function exportChannelToKALS(channelAnalysisId: string) {
+
+  const analysis = await getChannelAnalysis(channelAnalysisId)
+
+  // Export title formulas as knowledge_objects (type: "formula")
+  for (const formula of analysis.title_analysis.formulas) {
+    await createKnowledgeObject({
+      workspace_id: analysis.workspace_id,
+      object_type: "formula",
+      category: "copywriting",
+      name: `Title Formula: ${formula.pattern}`,
+      description: `Title formula extracted from ${analysis.display_name}. Avg views: ${formula.avg_views.toLocaleString()}`,
+      content: {
+        equation: formula.formula,
+        variables: formula.variables,
+        example: formula.examples[0],
+        result: `${formula.avg_views.toLocaleString()} avg views on ${analysis.display_name}`
+      },
+      agent_tags: ["writing_agent", "planning_agent"],
+      source_type: "channel_analysis",
+      source_id: channelAnalysisId
+    })
+  }
+
+  // Export hook formulas as knowledge_objects (type: "technique")
+  for (const hook of analysis.hook_analysis.hook_formulas) {
+    await createKnowledgeObject({
+      object_type: "technique",
+      category: "video_production",
+      name: `Hook Technique: ${hook.type}`,
+      content: { method: hook.structure, example: hook.example_verbatim, when_to_use: hook.type }
+      agent_tags: ["writing_agent"]
+    })
+  }
+
+  // Export thumbnail patterns as knowledge_objects (type: "template")
+  for (const layout of analysis.thumbnail_analysis.layouts) {
+    await createKnowledgeObject({
+      object_type: "template",
+      category: "thumbnail_design",
+      name: `Thumbnail: ${layout.name}`,
+      content: {
+        structure: layout.description,
+        variables: layout.elements,
+        example: layout.image_generation_prompt   // ready FLUX prompt
+      },
+      agent_tags: ["media_agent"]
+    })
+  }
+
+  // Export storytelling structure as knowledge_object (type: "pattern")
+  await createKnowledgeObject({
+    object_type: "pattern",
+    category: "storytelling",
+    name: `Narrative Pattern: ${analysis.display_name}`,
+    content: {
+      observed_in: [analysis.channel_url],
+      why_it_works: analysis.storytelling_analysis.narrative_structure,
+      structure: analysis.storytelling_analysis.story_formula
+    },
+    agent_tags: ["writing_agent", "strategy_agent"]
+  })
+}
+```
+
+---
+
+### 7. Autonomous Agent Integration
+
+#### Strategy Agent
+
+When building a new brand strategy, the Strategy Agent queries CIE for channels in the same niche:
+
+```typescript
+// Strategy Agent — CIE retrieval during brand strategy creation
+const niche = brief.niche  // "financial freedom for young men"
+
+// Find analyzed channels in this niche
+const similarChannels = await matchSimilarChannels({
+  query: niche,
+  workspace_id,
+  limit: 3
+})
+
+// Extract proven patterns
+const provenPillars = mergeContentPillars(similarChannels)
+const provenMonetization = mergeMonetizationBlueprints(similarChannels)
+const identifiedGaps = findGaps(similarChannels)  // what they DON'T cover
+
+// Inject into strategy prompt
+systemContext += `
+PROVEN CHANNEL PATTERNS IN THIS NICHE:
+${formatChannelBlueprintsForPrompt(similarChannels)}
+
+CONTENT GAPS (underserved topics these channels miss):
+${identifiedGaps.join(', ')}
+
+PROVEN MONETIZATION APPROACH:
+${provenMonetization}
+`
+```
+
+#### Content Planning Engine
+
+When scoring content ideas and building the weekly queue, the Planning Engine retrieves relevant title/hook formulas from CIE playbooks:
+
+```typescript
+// Planning Engine — retrieve proven title formulas for a content idea
+const playbookContext = await matchChannelPlaybooks({
+  query: `${idea.topic} ${idea.format} for ${workspace.audience}`,
+  workspace_id,
+  playbook_type: "title",
+  limit: 3
+})
+
+// Apply best-performing formula to the idea
+const formulatedTitle = applyTitleFormula(
+  playbookContext.formulas[0],
+  { topic: idea.topic, niche: workspace.niche }
+)
+
+contentQueueItem.suggested_title = formulatedTitle
+contentQueueItem.title_formula_source = playbookContext[0].channel_name
+```
+
+#### Writing Agent
+
+Before generating a script, the Writing Agent retrieves hook formulas from CIE playbooks:
+
+```typescript
+// Writing Agent — hook selection from CIE
+const hookOptions = await matchChannelPlaybooks({
+  query: `opening hook for "${contentItem.title}" financial freedom content`,
+  playbook_type: "hook",
+  limit: 3
+})
+
+// Present top 3 hook options to script generation
+kalsContext.hook_options = hookOptions.flatMap(p => p.formulas.slice(0, 2))
+// → Kimi receives: "Use one of these proven hook structures from top channels in your niche: ..."
+```
+
+#### Media Agent
+
+The Media Agent retrieves thumbnail formulas from CIE to enrich image generation:
+
+```typescript
+// Media Agent — thumbnail FLUX prompt enrichment from CIE
+const thumbnailFormulas = await matchChannelPlaybooks({
+  query: `thumbnail for "${contentItem.title}" ${workspace.niche}`,
+  playbook_type: "thumbnail",
+  limit: 2
+})
+
+// Extract image_generation_prompt from top formula
+const thumbnailStyle = thumbnailFormulas[0]?.formulas[0]?.image_generation_prompt
+// Example: "professional content creator, confident expression, looking at camera, 
+//           dark background, bold yellow text overlay, high contrast studio lighting"
+
+enrichedFluxPrompt = `${baseSceneDescription}, ${thumbnailStyle}, 9:16 aspect ratio, 
+                      thumbnail quality, high contrast, eye-catching`
+```
+
+---
+
+### 8. UI Design
+
+#### Channel Intelligence View
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  CHANNEL INTELLIGENCE                           [+ Analyze Channel]          │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │  Search analyzed channels...           Filter: Platform ▼  Niche ▼  │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ANALYZED CHANNELS                                                           │
+│  ─────────────────                                                           │
+│  ┌──────────────────────────────────────────┐ ┌──────────────────────────┐  │
+│  │  📺 @GrahamStephan              YouTube  │ │  📱 @halieybeauty  TikTok│  │
+│  │  3.6M subscribers · Finance niche       │ │  12.3M · Beauty/Wellness │  │
+│  │  Analyzed 2026-06-20 · 89 videos        │ │  Analyzed 2026-06-21     │  │
+│  │  4 pillars · 3 formulas · Full DNA      │ │  6 pillars · 5 formulas  │  │
+│  │  [View Analysis] [Build Version]        │ │  [View Analysis] [Build] │  │
+│  └──────────────────────────────────────────┘ └──────────────────────────┘  │
+│                                                                              │
+│  CHANNEL DNA — @GrahamStephan                                               │
+│  ─────────────────────────────                                               │
+│  Core Promise: "I show you exactly how money works, with proof"             │
+│  Unique Angle: Personal finance through a real investor's lived experience  │
+│  Voice: Direct, data-driven, self-aware, entertaining                       │
+│                                                                              │
+│  CONTENT PILLARS                                                            │
+│  Real Estate Investing  ████████████ 38%  avg 2.1M views                  │
+│  Stock Market / ETFs    ████████ 28%      avg 1.4M views                  │
+│  Personal Finance       ██████ 20%        avg 890K views                  │
+│  Creator Economy        ████ 14%          avg 1.1M views                  │
+│                                                                              │
+│  TOP TITLE FORMULA                                                          │
+│  "I {verb}d ${amount} in {timeframe} {method}"                             │
+│  Examples: "I Made $83,000 in One Year on YouTube"                         │
+│             "I Invested $10,000 in Tesla — Here's What Happened"            │
+│  Avg views using this formula: 1.8M                                        │
+│                                                                              │
+│  [View Full Playbook]  [Compare Channels]  [Build Channel Version]         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Version Builder Interface
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  VERSION BUILDER                                                              │
+│                                                                              │
+│  Source Channel(s)                                                          │
+│  [@GrahamStephan] [+ Add another source]                                   │
+│                                                                              │
+│  Version Type                                                               │
+│  ○ Similar channel     ○ Improved channel                                  │
+│  ● Niche transfer      ○ Audience transfer                                  │
+│  ○ Platform transfer   ○ Style transfer                                     │
+│                                                                              │
+│  Transformation                                                             │
+│  Source niche:  [Personal Finance / Investing          ▼]                  │
+│  Target niche:  [Business Building / Entrepreneurship  ▼]                  │
+│                                                                              │
+│  Keep from source:  ☑ Title formulas  ☑ Hook style  ☑ Posting cadence    │
+│                     ☑ Monetization (course)  ☐ Visual style                │
+│  Adapt:             ☑ Content pillars  ☑ Audience language  ☑ CTAs        │
+│                                                                              │
+│  [Generate Version →]                                                       │
+│                                                                              │
+│  ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ GENERATED ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄                            │
+│                                                                              │
+│  "BusinessStack" — Income Builder for Corporate Escapees                   │
+│  ─────────────────────────────────────────────────────                     │
+│  Core Promise: "I show corporate employees exactly how to build income      │
+│  outside their job — with real numbers and no fluff."                      │
+│                                                                              │
+│  Content Pillars:                                                           │
+│  Side Hustle Systems  35%  |  Business Building  30%                       │
+│  Freelance Income     20%  |  Creator Economy    15%                       │
+│                                                                              │
+│  Adapted Title Formula:                                                     │
+│  "I Built ${amount}/Month in {timeframe} with {method}"                    │
+│  → "I Built $5,000/Month in 90 Days with One Skill"                       │
+│                                                                              │
+│  First 10 Videos: [View List]                                              │
+│  Key Risks: [Business niche is more competitive — differentiate early]     │
+│                                                                              │
+│  [Refine Version]  [Accept + Seed into Workspace →]                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 9. Implementation Plan (CIE-specific)
+
+CIE is built in **Phase 2**, after the Research Engine and Knowledge Base are operational (since CIE's outputs feed into KALS).
+
+**Week 1 — Data Collection**
+- [ ] `channel_analyses`, `channel_content_samples`, `channel_intelligence_jobs` tables
+- [ ] YouTube channel collection: `api/cie/collect-youtube.js` — channel metadata + last 100 videos (YouTube Data API)
+- [ ] Apify TikTok + Instagram collection workers
+- [ ] Thumbnail downloader → Vercel Blob (for Vision analysis)
+- [ ] Transcript fetcher for collected YouTube videos (yt-dlp via Fluid Compute)
+- [ ] Virality score calculation per item
+
+**Week 2 — Analysis Engine**
+- [ ] Content pillar extraction: embedding cluster → K-means → named pillars
+- [ ] Posting pattern analyzer
+- [ ] Format + length distribution analyzer
+- [ ] Title structure extractor (Kimi structured analysis)
+- [ ] Hook structure extractor (Kimi on transcripts)
+- [ ] Storytelling pattern extractor (Kimi on top-10 transcripts)
+- [ ] Thumbnail Vision analyzer (GPT-4o Vision on collected thumbnails)
+
+**Week 3 — DNA + Playbooks**
+- [ ] Monetization signal analyzer
+- [ ] Audience targeting inference
+- [ ] Engagement velocity analyzer
+- [ ] DNA Extraction Agent: synthesizes 10 dimensions → 4 blueprints
+- [ ] `channel_playbooks` table
+- [ ] Title Playbook Generator
+- [ ] Hook Playbook Generator
+- [ ] CTA + Thumbnail + Content Structure Playbook Generators
+- [ ] KALS auto-export: playbook formulas → knowledge_objects
+
+**Week 4 — Version Builder + Agent Integration**
+- [ ] `channel_versions` table
+- [ ] Version Builder agent: VersionBrief → transformation logic → ChannelVersion
+- [ ] Niche transfer transformer
+- [ ] Platform transfer transformer (with platform-specific adaptation rules)
+- [ ] Audience transfer transformer
+- [ ] Style transfer transformer
+- [ ] "Accept + Seed" flow: ChannelVersion → workspace strategy seeding
+- [ ] Strategy Agent integration (CIE context on brand creation)
+- [ ] Content Planning Engine integration (playbook formula retrieval)
+- [ ] Writing Agent integration (hook + title formula injection)
+- [ ] Media Agent integration (thumbnail formula → FLUX prompt enrichment)
+
+**Week 5 — UI**
+- [ ] Channel Intelligence view: analyzed channels list + DNA display
+- [ ] Full Playbook viewer (all formula types per channel)
+- [ ] Channel comparison view (two channels side-by-side)
+- [ ] Version Builder interface
+- [ ] Analysis progress indicator (Supabase Realtime)
+- [ ] Blog + Newsletter analysis (Firecrawl path)
+
+---
+
+### Summary Table Update
+
+| Dimension | Today | With CIE |
+|---|---|---|
+| **Strategy input** | Operator's own knowledge | Grounded in proven channel DNA from top performers |
+| **Content titles** | Generic AI suggestions | Based on highest-performing formulas from analyzed channels |
+| **Hook writing** | Generic AI output | Formula-matched to hooks that perform in the niche |
+| **Thumbnail generation** | Basic scene description | Layout, color, emotion, and FLUX keywords from proven thumbnails |
+| **New channel creation** | Start from scratch | Version an existing successful channel in seconds |
+| **Niche pivot** | Manual research + guesswork | DNA transfer: take what works, apply to new niche with gaps identified |
+| **Platform expansion** | Manual reformatting | Platform transfer: algorithmic adaptation with format-specific rules |
+| **Competitive intelligence** | None | Continuous monitoring of tracked channels |
+
+---
+
+*End of Channel Intelligence Engine specification.*
+
+---
+
 *This document is the canonical architectural reference for ContentOS v2.0. All implementation decisions should be evaluated against this vision. Phase boundaries are estimates — pace them to available resources and real-world performance signals.*
