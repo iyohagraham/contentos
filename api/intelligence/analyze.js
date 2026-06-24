@@ -9,19 +9,32 @@
 import { getServerSupabase } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { embed } from '../_providers/embed.js'
-import { fetchChannelSamples, performanceTier, detectPlatform } from './_sources.js'
+import { fetchChannelSamples, performanceTier, detectPlatform, normalizeSamples } from './_sources.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { workspace_id, channel_url, platform: explicitPlatform, sample_count = 15 } = req.body
+  const { workspace_id, channel_url, platform: explicitPlatform, sample_count = 15, samples: manualSamples } = req.body
   if (!workspace_id || !channel_url) return res.status(400).json({ error: 'workspace_id and channel_url required' })
 
   const db = getServerSupabase()
 
   try {
-    // Step 1: Fetch REAL recent content samples (keyless for YouTube via Atom RSS).
-    const ingest = await fetchChannelSamples(channel_url, { max: sample_count })
+    // Step 1: Get REAL recent content samples. Priority:
+    //   1) operator-pasted samples (reliable real data for IG/TikTok)
+    //   2) auto-fetch — keyless YouTube RSS, or the configured scraper provider
+    let ingest
+    if (Array.isArray(manualSamples) && manualSamples.length) {
+      ingest = {
+        platform: explicitPlatform || detectPlatform(channel_url),
+        supported: true,
+        source: 'manual',
+        channel: {},
+        samples: normalizeSamples(manualSamples, channel_url)
+      }
+    } else {
+      ingest = await fetchChannelSamples(channel_url, { max: sample_count })
+    }
     const platform = explicitPlatform || ingest.platform || detectPlatform(channel_url)
     const meta = {
       platform,

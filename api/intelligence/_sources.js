@@ -166,7 +166,153 @@ async function fetchYouTubeSamples(url, max = 15) {
 }
 
 // ---------------------------------------------------------------------------
-// Instagram / TikTok — best-effort oEmbed for a single post; no keyless channel feed
+// Generic scraper provider — plug in Apify / RapidAPI / self-hosted for IG/TikTok.
+// Configure SOCIAL_SCRAPER_URL (+ optional SOCIAL_SCRAPER_KEY). The endpoint
+// receives { platform, url, max } and returns { samples: [...] } or a bare array.
+// ---------------------------------------------------------------------------
+
+async function fetchViaScraperProvider(platform, url, max) {
+  const endpoint = process.env.SOCIAL_SCRAPER_URL
+  if (!endpoint) return null
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.SOCIAL_SCRAPER_KEY ? { Authorization: `Bearer ${process.env.SOCIAL_SCRAPER_KEY}` } : {})
+      },
+      body: JSON.stringify({ platform, url, max }),
+      signal: AbortSignal.timeout(25000)
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const raw = Array.isArray(data) ? data : (data.samples || data.items || data.data || [])
+    const samples = normalizeSamples(raw, url)
+    return samples.length ? samples : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Normalize arbitrary post objects (from a scraper provider OR an operator paste)
+ * into the standard sample shape. Tolerates many field-name conventions so any
+ * source — Apify actor, RapidAPI, manual JSON — works without bespoke mapping.
+ * @param {Array} rawList
+ * @param {string|null} fallbackUrl
+ */
+export function normalizeSamples(rawList = [], fallbackUrl = null) {
+  if (!Array.isArray(rawList)) return []
+  return rawList
+    .map((r) => {
+      if (!r) return null
+      if (typeof r === 'string') {
+        return { video_url: fallbackUrl, title: r, description: r, views: null, likes: null, comments: null, published_at: null, thumbnail_url: null }
+      }
+      const num = (...keys) => {
+        for (const k of keys) { const v = r[k]; if (v != null && v !== '' && !Number.isNaN(Number(v))) return Number(v) }
+        return null
+      }
+      const str = (...keys) => {
+        for (const k of keys) { if (typeof r[k] === 'string' && r[k].trim()) return r[k].trim() }
+        return ''
+      }
+      const title = str('title', 'caption', 'desc', 'text', 'description')
+      if (!title) return null
+      return {
+        video_url: str('video_url', 'url', 'link', 'permalink') || fallbackUrl,
+        title,
+        description: str('description', 'caption', 'desc', 'text') || title,
+        views: num('views', 'view_count', 'play_count', 'plays', 'playCount', 'viewCount'),
+        likes: num('likes', 'like_count', 'digg_count', 'diggCount', 'likeCount'),
+        comments: num('comments', 'comment_count', 'commentCount'),
+        published_at: str('published_at', 'create_time', 'timestamp', 'taken_at', 'date') || null,
+        thumbnail_url: str('thumbnail_url', 'thumbnail', 'cover', 'image') || null
+      }
+    })
+    .filter(Boolean)
+}
+
+// ---------------------------------------------------------------------------
+// TikTok — scraper provider → best-effort keyless page scrape → single-post oEmbed
+// ---------------------------------------------------------------------------
+
+function tiktokHandle(url) {
+  const h = (url.match(/tiktok\.com\/@([\w.\-]+)/) || [])[1] || null
+  return { handle: h, display_name: h ? `@${h}` : null }
+}
+
+function collectTikTokItems(data) {
+  const out = []
+  const im = data?.ItemModule || data?.__DEFAULT_SCOPE__?.['webapp.user-detail']?.itemList
+  if (im && typeof im === 'object') {
+    const list = Array.isArray(im) ? im : Object.values(im)
+    for (const v of list) if (v && (v.desc || v.stats || v.statsV2)) out.push(v)
+  }
+  return out
+}
+
+function parseTikTokHtml(html) {
+  const samples = []
+  const m =
+    html.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application\/json">([\s\S]*?)<\/script>/) ||
+    html.match(/<script id="SIGI_STATE" type="application\/json">([\s\S]*?)<\/script>/)
+  if (!m) return samples
+  let data
+  try { data = JSON.parse(m[1]) } catch { return samples }
+  for (const it of collectTikTokItems(data)) {
+    const title = it.desc || it.title || ''
+    if (!title) continue
+    samples.push({
+      video_url: it.id ? `https://www.tiktok.com/@${it.author || ''}/video/${it.id}` : null,
+      title,
+      description: title,
+      views: Number(it.stats?.playCount ?? it.statsV2?.playCount) || null,
+      likes: Number(it.stats?.diggCount ?? it.statsV2?.diggCount) || null,
+      comments: Number(it.stats?.commentCount ?? it.statsV2?.commentCount) || null,
+      published_at: it.createTime ? new Date(Number(it.createTime) * 1000).toISOString() : null,
+      thumbnail_url: it.video?.cover || it.video?.originCover || null
+    })
+  }
+  return samples
+}
+
+async function fetchTikTokSamples(url, max) {
+  const viaProvider = await fetchViaScraperProvider('tiktok', url, max)
+  if (viaProvider) {
+    return { platform: 'tiktok', supported: true, source: 'scraper_provider', channel: tiktokHandle(url), samples: viaProvider.slice(0, max) }
+  }
+  // Best-effort keyless (often blocked from datacenter IPs — degrades gracefully).
+  try {
+    const html = await fetchText(url)
+    const samples = parseTikTokHtml(html)
+    if (samples.length) {
+      return { platform: 'tiktok', supported: true, source: 'tiktok_page', channel: tiktokHandle(url), samples: samples.slice(0, max) }
+    }
+  } catch { /* blocked — fall through */ }
+  return fetchOEmbedPost(url, 'tiktok')
+}
+
+// ---------------------------------------------------------------------------
+// Instagram — scraper provider → single-post oEmbed (no keyless channel feed)
+// ---------------------------------------------------------------------------
+
+function igHandle(url) {
+  const h = (url.match(/instagram\.com\/([\w.\-]+)/) || [])[1] || null
+  const clean = h && !['p', 'reel', 'reels', 'tv', 'stories'].includes(h) ? h : null
+  return { handle: clean, display_name: clean ? `@${clean}` : null }
+}
+
+async function fetchInstagramSamples(url, max) {
+  const viaProvider = await fetchViaScraperProvider('instagram', url, max)
+  if (viaProvider) {
+    return { platform: 'instagram', supported: true, source: 'scraper_provider', channel: igHandle(url), samples: viaProvider.slice(0, max) }
+  }
+  return fetchOEmbedPost(url, 'instagram')
+}
+
+// ---------------------------------------------------------------------------
+// Single-post oEmbed (best-effort) — TikTok public oEmbed; IG usually needs a token
 // ---------------------------------------------------------------------------
 
 async function fetchOEmbedPost(url, platform) {
@@ -215,7 +361,8 @@ export async function fetchChannelSamples(url, opts = {}) {
   const platform = detectPlatform(url)
   const max = opts.max || 15
   if (platform === 'youtube') return fetchYouTubeSamples(url, max)
-  if (platform === 'tiktok' || platform === 'instagram') return fetchOEmbedPost(url, platform)
+  if (platform === 'tiktok') return fetchTikTokSamples(url, max)
+  if (platform === 'instagram') return fetchInstagramSamples(url, max)
   return { platform: 'unknown', supported: false, source: 'unknown_platform', samples: [], channel: {} }
 }
 

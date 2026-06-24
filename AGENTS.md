@@ -172,7 +172,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Auth scaffold:** dormant until `VITE_SUPABASE_*` set
 
 ### In Progress
-- **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ done (keyless RSS). Still pending: a real **Instagram/TikTok** source (needs an API/scraping provider — no keyless channel feed exists), and the "clone/adapt/improve strategy → new niche" action surfaced in the UI.
+- **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ (keyless RSS). IG/TikTok ✅ via pluggable scraper provider (`SOCIAL_SCRAPER_URL`) + operator paste (`samples` in analyze body) + best-effort TikTok scrape. Remaining: surface "clone/adapt/improve strategy → new niche" in the UI; optionally ship a default IG/TikTok scraper integration.
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI done; needs monitoring dashboard, Notification Agent, 30-day test run
 
 ### Planned / Not Started
@@ -239,6 +239,12 @@ POSTIZ_API_KEY=
 # Channel Intelligence (optional — YouTube ingestion works KEYLESS via RSS; this only
 # enriches with subscriber/total-view counts)
 YOUTUBE_API_KEY=
+# Real IG/TikTok ingestion (optional) — plug in any scraper (Apify/RapidAPI/self-hosted).
+# Endpoint receives { platform, url, max } and returns { samples: [...] }.
+# Without it: TikTok best-effort page scrape + single-post oEmbed; or operator pastes
+# samples directly (analyze body `samples: [...]`) — always reliable.
+SOCIAL_SCRAPER_URL=
+SOCIAL_SCRAPER_KEY=
 # Cron (optional)
 CRON_SECRET=                  # protects cron endpoints
 CRON_MAX_JOBS=                # default 5
@@ -285,6 +291,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — IG/TikTok real ingestion (pluggable + manual)
+- **What:** Extended `_sources.js` with a provider-agnostic scraper hook (`SOCIAL_SCRAPER_URL`/`SOCIAL_SCRAPER_KEY` — receives `{platform,url,max}`, returns `{samples}`), best-effort keyless TikTok page scrape (SIGI/universal-data JSON), and `normalizeSamples()` (tolerates any field convention). `analyze.js` now accepts operator-pasted `samples` directly (reliable real data for IG/TikTok).
+- **Why:** IG/TikTok have no keyless channel feed and block datacenter scraping; the honest design is a pluggable real source + a paste fallback that always works, never fabricated stats.
+- **Impact:** Any scraper (Apify/RapidAPI/self-hosted) plugs in with one env var; without it, operators paste posts. Same DNA pipeline as YouTube. `normalizeSamples` verified against mixed TikTok/generic/string inputs.
 
 ### 2026-06-24 — Channel Intelligence: real ingestion (Priority 5)
 - **What:** Added `api/intelligence/_sources.js` (provider-agnostic channel source layer) and rewired `analyze.js` to ingest REAL recent videos. YouTube uses the public Atom RSS feed (`feeds/videos.xml?channel_id=`) — keyless, serverless-friendly — to get actual titles, descriptions, view + like counts; samples are stored in `channel_content_samples` with a median-relative `performance_tier`, and DNA extraction is now grounded in the real data (`data_confidence` high/low). IG/TikTok do best-effort oEmbed.
