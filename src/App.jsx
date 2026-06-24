@@ -22,6 +22,7 @@ import KnowledgeView from './views/KnowledgeView.jsx'
 import ResearchView from './views/ResearchView.jsx'
 import IntelligenceView from './views/IntelligenceView.jsx'
 import AgentsView from './views/AgentsView.jsx'
+import WorkspaceConfigView from './views/WorkspaceConfigView.jsx'
 
 const PLATFORMS = {
   tiktok: { name: 'TikTok', icon: '♫', color: 'black', bg: 'bg-black' },
@@ -78,6 +79,7 @@ function App() {
           <NavItem icon={Search} label="Research" active={activeView === 'research'} onClick={() => setActiveView('research')} expanded={sidebarOpen} />
           <NavItem icon={Zap} label="Intelligence" active={activeView === 'intelligence'} onClick={() => setActiveView('intelligence')} expanded={sidebarOpen} />
           <NavItem icon={Bot} label="Agents" active={activeView === 'agents'} onClick={() => setActiveView('agents')} expanded={sidebarOpen} />
+          <NavItem icon={Zap} label="Brand Mode" active={activeView === 'workspace'} onClick={() => setActiveView('workspace')} expanded={sidebarOpen} />
         </nav>
         <div className="p-3 border-t border-slate-800 space-y-2">
           <NavItem icon={Settings} label="Settings" active={activeView === 'settings'} onClick={() => setActiveView('settings')} expanded={sidebarOpen} />
@@ -111,6 +113,7 @@ function App() {
           {activeView === 'research' && <ResearchView workspaceId={workspaceId} />}
           {activeView === 'intelligence' && <IntelligenceView workspaceId={workspaceId} />}
           {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
+          {activeView === 'workspace' && <WorkspaceConfigView workspaceId={workspaceId} />}
         </main>
       </div>
     </div>
