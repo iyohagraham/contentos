@@ -106,9 +106,16 @@ api/                       Vercel serverless functions (plain ESM)
   generate-*.js            legacy/simple generation endpoints (script/strategy/ideas/visual/voice)
   social.js, social/[...action].js   social proxy (Postiz-backed)
 src/
-  App.jsx                  Main shell + nav + inline views (~2300 lines — see Tech Debt)
-  views/                   Knowledge, Research, Intelligence, Agents, Skills, WorkspaceConfig
+  App.jsx                  Main shell + sidebar nav + view dispatch (~126 lines after split)
+  AuthGate.jsx             Supabase auth gate (dormant until VITE_SUPABASE_* set)
+  views/                   ONE FILE PER VIEW — 16 total:
+                           Knowledge, Research, Intelligence, Agents, Skills,
+                           WorkspaceConfig, Monitor (agent-era views) +
+                           Dashboard, Strategy, Create, Content, Calendar,
+                           Analytics, Monetize, Channels, Settings (split from App.jsx)
   lib/
+    ui.jsx                 Shared view primitives: StatCard, QuickActionCard, PLATFORMS
+    router/                Model Router (PURE — see Critical Decisions)
     router/                Model Router (PURE — see Critical Decisions)
     db/                    store.js (localStorage⇄Supabase adapter), supabase.js, useStore.js, seed.js
     useWorkspace.js        resolves workspace UUID from Supabase auth (defaults to 'default')
@@ -198,8 +205,8 @@ Built and committed (localStorage mode works today; cloud features activate once
 | Dead social connectors | ✅ Resolved | Deleted the dead manager-based stack: `api/social.js` + `src/lib/social/{manager,scheduler,tiktok,instagram,youtube,facebook}.js`. Verified the frontend only ever calls `/api/postiz/*`; nothing reaches `/api/social`. **Kept** `src/lib/social/postiz.js` (7 importers: publishing agent + postiz routes + social catch-all + analytics) and `api/social/[...action].js` (live Postiz catch-all). |
 | Legacy `api/_kimi.js` | ✅ Resolved | Deleted — superseded by `_providers/text.js`; zero importers. |
 | Client-side `src/lib/fal.js` | ✅ Resolved | Deleted — superseded by server routes, key-exposure risk eliminated; zero importers. |
-| `src/App.jsx` ~2300 lines | Medium | inline views; split into per-view files + a WorkspaceContext |
-| Frontend bundle ~571 KB | Low | `@vercel/blob/client` + growing App.jsx; code-split when convenient |
+| `src/App.jsx` ~2300 lines | ✅ Resolved | Split into 16 per-view files (`src/views/*.jsx`) + shared `src/lib/ui.jsx` (StatCard/QuickActionCard/PLATFORMS). App.jsx is now the slim sidebar+dispatch shell (~126 lines). `NavItem` kept in App.jsx (sidebar-only). Extraction was verbatim (sed line-ranges) preserving exact prop interfaces — `vite build` green, bundle unchanged. No behavior change (no code-splitting yet — views are still statically imported). Follow-up: WorkspaceContext to drop prop-drilling + `React.lazy` code-splitting to shrink the ~586 KB bundle. |
+| Frontend bundle ~586 KB | Low | `@vercel/blob/client` + 16 statically-imported views; code-split with `React.lazy` when convenient (the split above was file reorg, not dynamic import) |
 | Stale root docs | Low | `CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md` are outdated — this file supersedes them |
 | `apply.js` invocation counter | Low | read-modify-write race; fine for single-user |
 
@@ -298,6 +305,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — App.jsx split into per-view files
+- **What:** Split the ~2227-line `src/App.jsx` into 16 per-view files under `src/views/` (Dashboard, Strategy, Create, Content, Calendar, Analytics, Monetize, Channels, Settings — newly extracted; + the 7 existing agent-era views) + a shared `src/lib/ui.jsx` exporting `StatCard`, `QuickActionCard`, `PLATFORMS`. App.jsx is now the slim sidebar-nav + view-dispatch shell (~126 lines) and imports the 16 views. `NavItem` stayed in App.jsx (sidebar-only). Extraction was done verbatim by copying exact `sed` line-ranges (no transcription) and giving each a uniform preamble (React hooks + App.jsx's full lucide icon block — unused icons tree-shaken — + the shared ui import) + conditional `postiz`/`auth`+`seed` imports where the view used them; `export default <Name>View` appended.
+- **Why:** The "App.jsx ~2300 lines" tech-debt item was the largest maintainability blocker. Split is pure file reorganization — exact prop interfaces preserved, no behavior change — so it's low-risk and unblocks future per-view work + code-splitting.
+- **Impact:** `vite build` green (1478 modules, bundle unchanged at ~586 KB — this was reorg, NOT dynamic import/code-splitting). Hit + fixed two snags during extraction: (a) `../lib/ui.js` path didn't resolve the `.jsx` file → import without extension; (b) the last view's range over-captured the original `export default App` → removed the stray line and re-added `export default App` to the new shell. No architecture/schema change. Follow-ups deferred: `WorkspaceContext` (drop prop-drilling) + `React.lazy` code-splitting to actually shrink the bundle.
 
 ### 2026-06-24 — Channel Intelligence "adapt → new niche" (Priority 5, actionable)
 - **What:** Added `api/intelligence/adapt.js` (POST — takes `dna` + `target_niche` + `version_type` → `textGenerateJSON` produces an adapted content blueprint: pillars, title/hook/cta formulas, + N starter posts; grounded via `buildRAGContext`; `coerceWorkspaceId` on wsId; 503 on no text-AI-provider). Wired `src/views/IntelligenceView.jsx` Version Builder cards with an "Adapt to my niche" collapsible panel (Wand2 icon) that calls it and renders the adapted strategy + post list with copy buttons. Handles `improved`/`niche_transfer`/`platform_transfer` framings.
