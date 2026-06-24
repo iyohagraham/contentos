@@ -207,7 +207,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 | Legacy `api/_kimi.js` | ✅ Resolved | Deleted — superseded by `_providers/text.js`; zero importers. |
 | Client-side `src/lib/fal.js` | ✅ Resolved | Deleted — superseded by server routes, key-exposure risk eliminated; zero importers. |
 | `src/App.jsx` ~2300 lines | ✅ Resolved | Split into 16 per-view files (`src/views/*.jsx`) + shared `src/lib/ui.jsx` (StatCard/QuickActionCard/PLATFORMS). App.jsx is now the slim sidebar+dispatch shell (~126 lines). `NavItem` kept in App.jsx (sidebar-only). Extraction was verbatim (sed line-ranges) preserving exact prop interfaces — `vite build` green, bundle unchanged. No behavior change (no code-splitting yet — views are still statically imported). Follow-up: WorkspaceContext to drop prop-drilling + `React.lazy` code-splitting to shrink the ~586 KB bundle. |
-| Frontend bundle ~586 KB | Low | `@vercel/blob/client` + 16 statically-imported views; code-split with `React.lazy` when convenient (the split above was file reorg, not dynamic import) |
+| Frontend bundle | ✅ Resolved | `React.lazy` + `Suspense` code-splitting: all 16 views are dynamic-imported, each its own chunk (45 chunks total). Initial bundle **586 KB → 387 KB** (gzip 152 → 110 KB, ~34% smaller); only the shell + landed view (dashboard) load up front. Remaining ~387 KB is React + recharts + shell — split recharts out next if it matters. |
 | Stale root docs | Low | `CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md` are outdated — this file supersedes them |
 | `apply.js` invocation counter | Low | read-modify-write race; fine for single-user |
 
@@ -306,6 +306,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — React.lazy code-splitting
+- **What:** Converted all 16 view imports in `App.jsx` from static to `React.lazy(() => import(...))` and wrapped the view-dispatch in `<Suspense fallback={<ViewFallback/>}>` (a small spinner). Each view + the shared `ui.jsx` now emit separate chunks.
+- **Why:** After the App.jsx split, all 16 views were still statically imported into one ~586 KB bundle. Dynamic import defers per-view code until the user navigates there.
+- **Impact:** Initial bundle **586 KB → 387 KB** (gzip 152 → 110 KB, ~34% smaller); 45 chunks total (largest view chunk: CreateView 24 KB). Only shell + dashboard load on first paint. `vite build` green. No behavior change (Suspense fallback covers the load gap). Resolves the frontend-bundle debt item.
 
 ### 2026-06-24 — Auto-learning Model Router
 - **What:** Added `api/_providers/learned-routing.js` (reads `model_routing_log` over 14-day window, computes per-model success rate → maps to learned `reliabilityScore` 10/9/8/7/6/4), `api/_providers/router-adapters.js` applies learned overrides at bootstrap via `model-registry.setModelOverride()` (runtime-overrides map in pure registry), `scoring-engine.js` reads overrides via `model-registry.getModelOverride()` (scoring engine now merges static + learned scores). `api/router/learn.js` exposes POST `/api/router/learn` (manual re-learn) + GET `/api/router/scores` (read-only visibility). Weekly `cron/learning-loop.js` runs `computeAndApplyLearnedRouting()` alongside the optimization enqueue.

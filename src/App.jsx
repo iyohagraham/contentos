@@ -1,28 +1,39 @@
-import React, { useState } from 'react'
+import React, { useState, lazy, Suspense } from 'react'
 import {
   LayoutDashboard, Target, Video, Layers, Calendar, BarChart3, DollarSign,
   Globe, Settings, Plus, Zap, Menu, X as XIcon, Brain, GraduationCap,
-  Search, Bot, Monitor, Database, HardDrive
+  Search, Bot, Monitor, Database, HardDrive, Loader2
 } from 'lucide-react'
 import { useChannels, useVideos, useProducts, useStrategies, useDbMode } from './lib/db/useStore.js'
 import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format.js'
 import { useWorkspace } from './lib/useWorkspace.js'
-import DashboardView from './views/DashboardView.jsx'
-import StrategyView from './views/StrategyView.jsx'
-import CreateView from './views/CreateView.jsx'
-import ContentView from './views/ContentView.jsx'
-import CalendarView from './views/CalendarView.jsx'
-import AnalyticsView from './views/AnalyticsView.jsx'
-import MonetizeView from './views/MonetizeView.jsx'
-import ChannelsView from './views/ChannelsView.jsx'
-import SettingsView from './views/SettingsView.jsx'
-import KnowledgeView from './views/KnowledgeView.jsx'
-import SkillsView from './views/SkillsView.jsx'
-import ResearchView from './views/ResearchView.jsx'
-import IntelligenceView from './views/IntelligenceView.jsx'
-import AgentsView from './views/AgentsView.jsx'
-import WorkspaceConfigView from './views/WorkspaceConfigView.jsx'
-import MonitorView from './views/MonitorView.jsx'
+
+// Lazy-loaded views — each becomes its own chunk so the initial bundle only
+// carries the shell + whichever view the user lands on (dashboard).
+const DashboardView = lazy(() => import('./views/DashboardView.jsx'))
+const StrategyView = lazy(() => import('./views/StrategyView.jsx'))
+const CreateView = lazy(() => import('./views/CreateView.jsx'))
+const ContentView = lazy(() => import('./views/ContentView.jsx'))
+const CalendarView = lazy(() => import('./views/CalendarView.jsx'))
+const AnalyticsView = lazy(() => import('./views/AnalyticsView.jsx'))
+const MonetizeView = lazy(() => import('./views/MonetizeView.jsx'))
+const ChannelsView = lazy(() => import('./views/ChannelsView.jsx'))
+const SettingsView = lazy(() => import('./views/SettingsView.jsx'))
+const KnowledgeView = lazy(() => import('./views/KnowledgeView.jsx'))
+const SkillsView = lazy(() => import('./views/SkillsView.jsx'))
+const ResearchView = lazy(() => import('./views/ResearchView.jsx'))
+const IntelligenceView = lazy(() => import('./views/IntelligenceView.jsx'))
+const AgentsView = lazy(() => import('./views/AgentsView.jsx'))
+const WorkspaceConfigView = lazy(() => import('./views/WorkspaceConfigView.jsx'))
+const MonitorView = lazy(() => import('./views/MonitorView.jsx'))
+
+function ViewFallback() {
+  return (
+    <div className="flex items-center justify-center py-24 text-slate-500">
+      <Loader2 className="w-6 h-6 animate-spin" />
+    </div>
+  )
+}
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard')
@@ -95,22 +106,24 @@ function App() {
           </button>
         </header>
         <main className="p-6">
-          {activeView === 'dashboard' && <DashboardView channels={channels} videos={videos} products={products} onNavigate={setActiveView} />}
-          {activeView === 'strategy' && <StrategyView createStrategy={createStrategy} />}
-          {activeView === 'create' && <CreateView channels={channels} createVideo={createVideo} />}
-          {activeView === 'content' && <ContentView videos={videos} updateVideo={updateVideo} removeVideo={removeVideo} />}
-          {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} updateVideo={updateVideo} />}
-          {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} workspaceId={workspaceId} />}
-          {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
-          {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
-          {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
-          {activeView === 'knowledge' && <KnowledgeView workspaceId={workspaceId} />}
-          {activeView === 'skills' && <SkillsView workspaceId={workspaceId} />}
-          {activeView === 'research' && <ResearchView workspaceId={workspaceId} />}
-          {activeView === 'intelligence' && <IntelligenceView workspaceId={workspaceId} />}
-          {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
-          {activeView === 'workspace' && <WorkspaceConfigView workspaceId={workspaceId} />}
-          {activeView === 'monitor' && <MonitorView workspaceId={workspaceId} />}
+          <Suspense fallback={<ViewFallback />}>
+            {activeView === 'dashboard' && <DashboardView channels={channels} videos={videos} products={products} onNavigate={setActiveView} />}
+            {activeView === 'strategy' && <StrategyView createStrategy={createStrategy} />}
+            {activeView === 'create' && <CreateView channels={channels} createVideo={createVideo} />}
+            {activeView === 'content' && <ContentView videos={videos} updateVideo={updateVideo} removeVideo={removeVideo} />}
+            {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} updateVideo={updateVideo} />}
+            {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} workspaceId={workspaceId} />}
+            {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
+            {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
+            {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
+            {activeView === 'knowledge' && <KnowledgeView workspaceId={workspaceId} />}
+            {activeView === 'skills' && <SkillsView workspaceId={workspaceId} />}
+            {activeView === 'research' && <ResearchView workspaceId={workspaceId} />}
+            {activeView === 'intelligence' && <IntelligenceView workspaceId={workspaceId} />}
+            {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
+            {activeView === 'workspace' && <WorkspaceConfigView workspaceId={workspaceId} />}
+            {activeView === 'monitor' && <MonitorView workspaceId={workspaceId} />}
+          </Suspense>
         </main>
       </div>
     </div>
