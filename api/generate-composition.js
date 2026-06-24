@@ -1,25 +1,25 @@
-import ContentOS from '../openmontage-bridge.js'
+/**
+ * POST /api/generate-composition
+ * Thin HTTP surface over the Composition Engine (HyperFrames).
+ * Body: { script, options? } → { success, composition, html, manifest, duration }
+ */
+import { createComposition, generateHyperFramesHTML, toManifest } from './_engines/composition/hyperframes.js'
 
 export default function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
     const { script, options = {} } = req.body
+    if (!script) return res.status(400).json({ error: 'Script is required' })
 
-    if (!script) {
-      return res.status(400).json({ error: 'Script is required' })
-    }
-
-    // Generate composition using the bridge
-    const composition = ContentOS.createComposition(script, options)
-    const html = ContentOS.generateHyperFramesHTML(composition)
+    const composition = createComposition(script, options)
+    const html = generateHyperFramesHTML(composition)
 
     return res.status(200).json({
       success: true,
       composition,
       html,
+      manifest: toManifest(composition),
       duration: composition.duration
     })
   } catch (error) {

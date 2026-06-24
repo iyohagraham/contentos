@@ -21,7 +21,6 @@ const generateStrategy = (await import('./api/generate-strategy.js')).default
 const generateIdeas = (await import('./api/generate-ideas.js')).default
 const generateComposition = (await import('./api/generate-composition.js')).default
 const analytics = (await import('./api/analytics.js')).default
-const socialRouter = (await import('./api/social.js')).default
 const postizStatus = (await import('./api/postiz/status.js')).default
 const postizChannels = (await import('./api/postiz/channels.js')).default
 const postizPost = (await import('./api/postiz/post.js')).default
@@ -32,9 +31,6 @@ app.post('/api/generate-strategy', generateStrategy)
 app.post('/api/generate-ideas', generateIdeas)
 app.post('/api/generate-composition', generateComposition)
 app.get('/api/analytics', analytics)
-
-// Social media APIs
-app.use('/api/social', socialRouter)
 
 // Postiz proxy — route to individual handlers
 app.get('/api/postiz/status', postizStatus)

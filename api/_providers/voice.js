@@ -60,10 +60,11 @@ export async function generateVoiceLocal(text, opts = {}) {
   const outFile = path.join(os.tmpdir(), `voice_${Date.now()}.wav`)
   const scriptPath = path.join(process.env.HOME, '.kokoro-venv', 'bin', 'python3')
 
-  // Try Kokoro via the contentos kokoro_tts tool path
-  const kokoroScript = '/Users/iyohagraham/OpenMontage/tools/audio/kokoro_tts.py'
+  // Local Kokoro TTS script path. Configurable via KOKORO_TTS_SCRIPT; defaults to
+  // a self-contained ~/.kokoro install (OpenMontage is no longer a dependency).
+  const kokoroScript = process.env.KOKORO_TTS_SCRIPT || path.join(process.env.HOME || '', '.kokoro', 'kokoro_tts.py')
   if (!fs.existsSync(kokoroScript)) {
-    throw new Error('Kokoro not available; FAL_KEY required for cloud TTS')
+    throw new Error('Kokoro not available (set KOKORO_TTS_SCRIPT or install ~/.kokoro); FAL_KEY required for cloud TTS')
   }
 
   await execFileAsync(scriptPath, [kokoroScript, '--text', text, '--voice', voiceId, '--out', outFile])

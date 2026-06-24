@@ -1,11 +1,11 @@
 /**
- * Composition / timeline layer — OpenMontage-compatible.
+ * Composition / timeline layer — the COMPOSITION_MANIFEST builder.
  *
  * buildManifest() takes the loose asset bag a Media Agent produces
  * (scene image URLs, narration + music tracks, optional captions, branding,
  * a target aspect ratio) and resolves it into a fully-specified
- * COMPOSITION MANIFEST — the stable contract consumed by ffmpeg.js
- * (renderTimeline) and by the OpenMontage worker.
+ * COMPOSITION MANIFEST — the stable contract consumed by the Composition
+ * Engine (HyperFrames) and the Rendering Engine (ffmpeg.js renderTimeline).
  *
  * "Resolved" means: pixel width/height/fps are concrete numbers, every scene
  * has an absolute `start` time on the timeline (derived sequentially from its
