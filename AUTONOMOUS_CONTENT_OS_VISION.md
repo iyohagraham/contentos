@@ -2192,4 +2192,805 @@ PORT=3001                      # Local dev only
 
 ---
 
+## 16. Knowledge Acquisition & Learning System (KALS)
+
+### Purpose
+
+The Knowledge Acquisition & Learning System is ContentOS's operator-curated intelligence layer. While the Research Intelligence Engine (§2) automatically collects knowledge *from the internet*, KALS allows operators to import knowledge *from their own libraries* — textbooks, playbooks, swipe files, course materials, SOPs, prompt collections — and transform that material into structured, searchable, agent-accessible knowledge assets.
+
+Every document uploaded becomes a permanent part of the system's intelligence. A camera angle guide uploaded once influences every image prompt generated forever. A copywriting swipe file uploaded once makes every script sharper. A competitor's course material uploaded once informs every piece of strategy the system produces.
+
+**The compound effect:** the more operators feed the system, the smarter it becomes. KALS is how a solo creator can give ContentOS the knowledge base of a full creative agency.
+
+---
+
+### Supported Source Types
+
+| Source Type | File Formats | Extraction Method |
+|---|---|---|
+| PDF documents | `.pdf` | PDF text extraction (pdf-parse) + OCR fallback (Tesseract) |
+| Books / Guides | `.pdf`, `.epub`, `.docx`, `.txt` | Chapter detection + hierarchical chunking |
+| Playbooks / SOPs | `.pdf`, `.docx`, `.md`, `.notion` export | Process/step extraction + sequential ordering |
+| Research reports | `.pdf`, `.docx` | Section detection + data/finding extraction |
+| YouTube transcripts | YouTube URL | `yt-dlp --write-auto-sub` + timestamp-aligned chunking |
+| Video transcripts | `.srt`, `.vtt`, `.txt` | Timestamp parsing + semantic scene chunking |
+| Web articles | URL | Firecrawl/Playwright → cleaned markdown → chunking |
+| Swipe files | `.pdf`, `.docx`, `.txt`, image | OCR + copy pattern extraction |
+| Course materials | `.pdf`, `.zip` (SCORM), URL | Multi-file unpack + module/lesson hierarchy |
+| Prompt libraries | `.txt`, `.md`, `.json`, `.csv` | Prompt pattern recognition + variable extraction |
+| Notion exports | `.zip` (Notion export) | Page tree parse + block-level extraction |
+| Google Docs | Shared URL | Google Docs API → markdown export |
+
+---
+
+### Ingestion Pipeline
+
+```
+Upload Asset
+     │
+     ▼
+[1. Receive & Store]
+     Upload to Vercel Blob (raw, persistent)
+     Create knowledge_asset record (status: ingesting)
+     Enqueue ingestion job → contentos-knowledge queue
+     │
+     ▼
+[2. Extract Raw Text]
+     Route by file type:
+       PDF   → pdf-parse + OCR fallback
+       DOCX  → mammoth → markdown
+       URL   → Firecrawl → cleaned markdown
+       YT URL → yt-dlp transcript → timestamped text
+       SRT   → parse timestamps → scene blocks
+       Image → GPT-4o Vision → text description
+       ZIP   → unpack → process each file recursively
+     │
+     ▼
+[3. Structure Detection]
+     Identify: title, author, chapters/sections, lists, tables, code blocks
+     Detect: document type (guide / swipe / SOP / course / research / transcript)
+     Extract: TOC if present (for navigation + chunk labeling)
+     │
+     ▼
+[4. Semantic Chunking]
+     Split into knowledge_chunks:
+       - Respect structural boundaries (chapter/section breaks preferred)
+       - Target: 400-600 tokens per chunk
+       - Overlap: 50 tokens between adjacent chunks (for retrieval continuity)
+       - Each chunk carries: parent document, section title, position index, page ref
+     │
+     ▼
+[5. Concept & Entity Extraction]
+     AI analysis pass (Kimi/GPT-4o) over each chunk:
+       Extract: key concepts, named entities, technical terms, statistics
+       Tag: knowledge_category (Marketing / Copywriting / Video / etc.)
+       Identify: knowledge_object_type (Framework / Technique / Process / etc.)
+       Score: importance (1-5) + applicability (which agents benefit)
+     │
+     ▼
+[6. Deep Extraction Pass]
+     Specialized extractors run per object type detected:
+       Frameworks    → extract: name, components, steps, use case, example
+       Techniques    → extract: name, method, when to use, example, result
+       Processes     → extract: name, trigger, sequential steps, output, tools needed
+       Templates     → extract: name, structure, fill-in variables, example
+       Prompts       → extract: goal, full prompt text, variables ({{placeholders}}), best for
+       Checklists    → extract: name, items[], completion criteria
+       Formulas      → extract: name, equation/structure, variables, example
+       Case Studies  → extract: subject, context, action, result, lesson
+       Patterns      → extract: name, description, where it appears, why it works
+       Strategies    → extract: name, goal, components, execution, metrics
+     │
+     ▼
+[7. Summary Generation]
+     Per chunk: 1-sentence summary (for display + retrieval)
+     Per document: paragraph summary + key_takeaways[] (3-5 bullets)
+     Per extracted object: brief description + "how agents should use this"
+     │
+     ▼
+[8. Embedding Generation]
+     Embed each knowledge_chunk (text) → vector(1536) via text-embedding-3-small
+     Embed each knowledge_object (name + description + content) → vector(1536)
+     Embed document summary → vector(1536)
+     Store all embeddings → pgvector columns
+     │
+     ▼
+[9. Relationship Mapping]
+     Cross-reference newly extracted objects against existing KB:
+       Similarity search: find related objects (cosine similarity > 0.82)
+       Tag relationships: "extends", "contradicts", "exemplifies", "is_part_of"
+       Update knowledge_relationships table
+     │
+     ▼
+[10. Activate]
+     Update knowledge_asset.status → "active"
+     Notify operator: "{N} frameworks, {M} techniques, {K} prompts extracted"
+     Trigger: re-index workspace knowledge graph
+```
+
+---
+
+### Knowledge Objects & Taxonomy
+
+Every piece of extracted knowledge is typed as one of ten canonical objects. Typing determines how the object is stored, displayed, and retrieved.
+
+```typescript
+// Canonical knowledge object types
+type KnowledgeObjectType =
+  | "framework"    // A named multi-component model (AIDA, PAS, Story Brand, etc.)
+  | "technique"    // A specific actionable method (J-cut editing, curiosity gap hook, etc.)
+  | "process"      // A sequential step-by-step workflow
+  | "template"     // A fill-in structure with {{variables}}
+  | "prompt"       // An LLM prompt pattern (for agent use)
+  | "checklist"    // A verification list (pre-publish checklist, etc.)
+  | "formula"      // A repeatable structure or equation (Hook + Story + Offer = CTA)
+  | "case_study"   // A real-world documented example with result
+  | "pattern"      // A recurring observed behavior or structure
+  | "strategy"     // A high-level plan with goal + components + execution
+
+// Knowledge categories
+type KnowledgeCategory =
+  | "marketing"         // Funnels, positioning, USP, growth
+  | "copywriting"       // Headlines, persuasion, emotional triggers, CTAs
+  | "storytelling"      // Narrative structure, character, tension, resolution
+  | "video_production"  // Scripting, pacing, formats, platform conventions
+  | "cinematography"    // Camera angles, lens selection, movement, composition
+  | "thumbnail_design"  // Visual hierarchy, contrast, emotion, text overlay
+  | "sales"             // Objection handling, closing, offer design
+  | "psychology"        // Cognitive biases, motivation, behavioral triggers
+  | "business"          // Operations, pricing, positioning, systems
+  | "ai_automation"     // Prompt engineering, workflow design, agent patterns
+  | "social_media"      // Algorithm mechanics, engagement, virality
+  | "content_creation"  // Ideation, production, batching, repurposing
+  | "industry_specific" // Niche-specific knowledge (tagged with niche name)
+```
+
+---
+
+### Database Schema
+
+```sql
+-- KNOWLEDGE ASSETS (top-level document record)
+CREATE TABLE knowledge_assets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  
+  -- Source info
+  title text NOT NULL,
+  source_type text NOT NULL,        -- pdf/docx/url/youtube/srt/txt/zip/image
+  source_url text,                  -- original URL (if web/YouTube)
+  blob_url text,                    -- Vercel Blob URL of raw file
+  file_size_bytes bigint,
+  
+  -- Classification
+  knowledge_categories text[],      -- array of KnowledgeCategory
+  document_type text,               -- guide/swipe/sop/course/research/transcript/other
+  author text,
+  source_name text,                 -- "Gary Halbert's Boron Letters", "MrBeast's Mastermind"
+  
+  -- Extraction results
+  status text DEFAULT 'queued',     -- queued/ingesting/extracting/embedding/active/failed
+  page_count int,
+  word_count int,
+  chunk_count int DEFAULT 0,
+  object_count int DEFAULT 0,       -- total extracted knowledge objects
+  
+  -- Summary
+  summary text,
+  key_takeaways text[],
+  
+  -- Embedding of the summary (for doc-level similarity)
+  embedding vector(1536),
+  
+  -- Operator notes
+  operator_notes text,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- KNOWLEDGE CHUNKS (raw text segments, the retrieval unit)
+CREATE TABLE knowledge_chunks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  asset_id uuid NOT NULL REFERENCES knowledge_assets(id) ON DELETE CASCADE,
+  
+  -- Position in document
+  chunk_index int NOT NULL,
+  section_title text,
+  page_ref text,                    -- "p. 42" or "00:12:34" for transcripts
+  
+  -- Content
+  content text NOT NULL,            -- raw chunk text
+  summary text,                     -- 1-sentence summary of this chunk
+  token_count int,
+  
+  -- Classification
+  knowledge_categories text[],
+  importance_score int,             -- 1-5, AI-assigned
+  
+  -- Vector
+  embedding vector(1536),
+  
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- KNOWLEDGE OBJECTS (extracted structured knowledge)
+CREATE TABLE knowledge_objects (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  asset_id uuid REFERENCES knowledge_assets(id) ON DELETE SET NULL,
+  chunk_id uuid REFERENCES knowledge_chunks(id) ON DELETE SET NULL,
+  
+  -- Identity
+  object_type text NOT NULL,        -- KnowledgeObjectType
+  category text NOT NULL,           -- KnowledgeCategory
+  name text NOT NULL,               -- "AIDA Framework" / "J-cut Technique"
+  description text NOT NULL,        -- 2-3 sentence summary
+  
+  -- Content (varies by object_type, stored as JSONB)
+  content jsonb NOT NULL,
+  /*
+    Framework:   { components: [], steps: [], use_case: "", example: "" }
+    Technique:   { method: "", when_to_use: "", example: "", result: "" }
+    Process:     { trigger: "", steps: [], output: "", tools: [] }
+    Template:    { structure: "", variables: [], example: "" }
+    Prompt:      { goal: "", prompt_text: "", variables: [], best_for: "" }
+    Checklist:   { items: [], completion_criteria: "" }
+    Formula:     { equation: "", variables: {}, example: "", result: "" }
+    Case_study:  { subject: "", context: "", action: "", result: "", lesson: "" }
+    Pattern:     { observed_in: [], why_it_works: "", counter_examples: [] }
+    Strategy:    { goal: "", components: [], execution: "", metrics: [] }
+  */
+  
+  -- Agent applicability (which agents should retrieve this)
+  agent_tags text[],                -- ["writing_agent", "media_agent", "strategy_agent"]
+  
+  -- Quality
+  confidence_score float,           -- AI confidence in extraction quality (0-1)
+  verified boolean DEFAULT false,   -- operator-verified as correct
+  usage_count int DEFAULT 0,        -- times retrieved by agents
+  
+  -- Vector
+  embedding vector(1536),
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE INDEX ON knowledge_objects USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- KNOWLEDGE RELATIONSHIPS (graph edges between objects)
+CREATE TABLE knowledge_relationships (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  source_id uuid NOT NULL REFERENCES knowledge_objects(id) ON DELETE CASCADE,
+  target_id uuid NOT NULL REFERENCES knowledge_objects(id) ON DELETE CASCADE,
+  relationship_type text NOT NULL,  -- extends/contradicts/exemplifies/is_part_of/related_to
+  strength float DEFAULT 0.5,       -- 0-1, derived from embedding cosine similarity
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(source_id, target_id, relationship_type)
+);
+
+-- KNOWLEDGE INGESTION JOBS (queue tracking)
+CREATE TABLE knowledge_ingestion_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  asset_id uuid REFERENCES knowledge_assets(id),
+  stage text DEFAULT 'queued',      -- queued/extracting/chunking/analyzing/embedding/complete/failed
+  progress_pct int DEFAULT 0,
+  current_step text,
+  result json,
+  error text,
+  attempts int DEFAULT 0,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- KNOWLEDGE SEARCH LOG (for retrieval optimization)
+CREATE TABLE knowledge_search_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL,
+  querying_agent text,              -- which agent made the search
+  query_text text,
+  query_embedding vector(1536),
+  results_returned int,
+  result_ids uuid[],
+  search_latency_ms int,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+**RLS — all tables follow the workspace owner pattern:**
+```sql
+ALTER TABLE knowledge_assets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "workspace_owner" ON knowledge_assets
+  FOR ALL USING (workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+-- (same pattern for all knowledge_* tables)
+```
+
+**Supabase vector search functions:**
+```sql
+-- Semantic chunk search
+CREATE OR REPLACE FUNCTION match_knowledge_chunks(
+  query_embedding vector(1536),
+  workspace_id uuid,
+  category_filter text DEFAULT NULL,
+  match_count int DEFAULT 10,
+  min_similarity float DEFAULT 0.72
+) RETURNS TABLE (
+  id uuid, content text, summary text, section_title text,
+  asset_id uuid, importance_score int, similarity float
+) LANGUAGE sql STABLE AS $$
+  SELECT kc.id, kc.content, kc.summary, kc.section_title, kc.asset_id,
+         kc.importance_score, 1 - (kc.embedding <=> query_embedding) AS similarity
+  FROM knowledge_chunks kc
+  WHERE kc.workspace_id = match_knowledge_chunks.workspace_id
+    AND (category_filter IS NULL OR category_filter = ANY(kc.knowledge_categories))
+    AND 1 - (kc.embedding <=> query_embedding) > min_similarity
+  ORDER BY kc.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+
+-- Semantic object search
+CREATE OR REPLACE FUNCTION match_knowledge_objects(
+  query_embedding vector(1536),
+  workspace_id uuid,
+  object_types text[] DEFAULT NULL,
+  agent_tag text DEFAULT NULL,
+  match_count int DEFAULT 5,
+  min_similarity float DEFAULT 0.75
+) RETURNS TABLE (
+  id uuid, object_type text, category text, name text,
+  description text, content jsonb, usage_count int, similarity float
+) LANGUAGE sql STABLE AS $$
+  SELECT ko.id, ko.object_type, ko.category, ko.name,
+         ko.description, ko.content, ko.usage_count,
+         1 - (ko.embedding <=> query_embedding) AS similarity
+  FROM knowledge_objects ko
+  WHERE ko.workspace_id = match_knowledge_objects.workspace_id
+    AND (object_types IS NULL OR ko.object_type = ANY(object_types))
+    AND (agent_tag IS NULL OR agent_tag = ANY(ko.agent_tags))
+    AND 1 - (ko.embedding <=> query_embedding) > min_similarity
+  ORDER BY ko.embedding <=> query_embedding
+  LIMIT match_count;
+$$;
+```
+
+---
+
+### Processing Architecture
+
+#### Chunking Strategy
+
+Different source types require different chunking strategies:
+
+```typescript
+const CHUNK_STRATEGIES = {
+  // Structured documents — split at logical boundaries
+  guide_playbook: {
+    primary_split: 'section_heading',   // H1/H2/H3 boundaries
+    fallback_split: 'paragraph',
+    target_tokens: 500,
+    overlap_tokens: 50
+  },
+  // SOPs / processes — preserve step integrity
+  sop_process: {
+    primary_split: 'numbered_step',
+    group_steps: 3,                     // group 3 steps per chunk
+    preserve_context: 'process_name',   // inject process name into every chunk
+    target_tokens: 400
+  },
+  // Transcripts — split at semantic pauses, not arbitrary tokens
+  transcript: {
+    primary_split: 'silence_gap',       // >2s gap in timestamps
+    fallback_split: 'sentence',
+    target_tokens: 350,
+    include_timestamps: true
+  },
+  // Swipe files — each example is atomic
+  swipe_file: {
+    primary_split: 'example_boundary',  // blank line + heading patterns
+    min_tokens: 50,
+    max_tokens: 800,
+    preserve_complete: true             // never split mid-example
+  },
+  // Long-form (books) — respect chapter + section structure
+  book: {
+    primary_split: 'chapter',
+    secondary_split: 'section',
+    target_tokens: 600,
+    overlap_tokens: 75,
+    include_chapter_context: true       // prepend "Chapter N: {title}" to each chunk
+  }
+}
+```
+
+#### Extraction Prompt System
+
+Each extraction pass uses a typed, structured prompt:
+
+```typescript
+// Framework extraction (example)
+const FRAMEWORK_EXTRACTION_PROMPT = `
+You are extracting marketing/content knowledge from a document.
+
+Extract ALL frameworks from the following text. A framework is a named, 
+multi-component model or system that can be applied to achieve a result.
+
+Examples: AIDA, PAS, StoryBrand, Hook-Story-Offer, 80/20 Rule, Hero's Journey.
+
+For each framework found, output a JSON object:
+{
+  "name": "Framework name",
+  "category": "marketing|copywriting|storytelling|video_production|...",
+  "components": ["component 1", "component 2", ...],
+  "steps": ["step 1 (optional)", ...],
+  "use_case": "When/why to use this framework",
+  "example": "Concrete example of applying this framework",
+  "agent_tags": ["writing_agent", "strategy_agent", ...]
+}
+
+Return: { "frameworks": [...] }
+
+TEXT:
+{chunk_content}
+`
+
+// Camera angle extraction (cinematography-specific)
+const CINEMATOGRAPHY_EXTRACTION_PROMPT = `
+Extract all cinematography techniques, camera angles, and visual concepts.
+
+For each technique:
+{
+  "name": "Technique name (e.g. Dutch Angle, J-cut, Rule of Thirds)",
+  "category": "cinematography",
+  "object_type": "technique",
+  "method": "How to execute this technique",
+  "when_to_use": "What emotional/narrative effect this creates",
+  "example": "Specific example from film or content",
+  "agent_tags": ["media_agent"],  // → influences image/video prompts
+  "prompt_keywords": ["dutch angle", "tilted camera"]  // injected into image prompts
+}
+
+TEXT: {chunk_content}
+`
+```
+
+---
+
+### Retrieval API
+
+The retrieval API is the interface through which all agents access KALS. It combines semantic search, object-type filtering, and agent-specific routing.
+
+```typescript
+// api/kb/retrieve-knowledge.js
+
+interface KnowledgeRetrievalRequest {
+  workspace_id: string
+  query: string                        // natural-language query from the agent
+  categories?: KnowledgeCategory[]    // filter by category
+  object_types?: KnowledgeObjectType[] // filter by type (framework, technique, etc.)
+  agent?: string                       // which agent is requesting (for agent_tag filter)
+  include_chunks?: boolean             // return raw chunks (for context injection)
+  include_objects?: boolean            // return structured objects (default: true)
+  chunk_limit?: number                 // default 5
+  object_limit?: number                // default 5
+  min_similarity?: number             // default 0.72
+}
+
+interface KnowledgeRetrievalResult {
+  chunks: {
+    id: string
+    content: string
+    summary: string
+    section_title: string
+    asset_title: string
+    similarity: number
+  }[]
+  objects: {
+    id: string
+    object_type: KnowledgeObjectType
+    category: KnowledgeCategory
+    name: string
+    description: string
+    content: object           // typed by object_type
+    similarity: number
+  }[]
+  total_results: number
+  search_latency_ms: number
+}
+
+// Example agent usage (Writing Agent retrieving copywriting frameworks)
+const context = await retrieveKnowledge({
+  workspace_id,
+  query: "how to write a compelling hook for a financial freedom video",
+  categories: ["copywriting", "storytelling"],
+  object_types: ["framework", "technique", "formula", "template"],
+  agent: "writing_agent",
+  object_limit: 8,
+  include_chunks: true,
+  chunk_limit: 3
+})
+
+// Returned objects might include:
+// - AIDA Framework (marketing, framework)
+// - Curiosity Gap Technique (copywriting, technique)
+// - PAS Formula (copywriting, formula)
+// - "Before/After" Hook Template (copywriting, template)
+// - Chunk: page 47 of "Breakthrough Advertising" on desire-triggering headlines
+```
+
+---
+
+### Knowledge Graph
+
+Beyond flat retrieval, KALS maintains a relationship graph between knowledge objects. This enables traversal queries: "give me everything related to this framework," "what contradicts this technique," "what are the components of this strategy."
+
+```typescript
+// Traverse the knowledge graph from a seed object
+async function traverseKnowledgeGraph(
+  seed_object_id: string,
+  workspace_id: string,
+  relationship_types: RelationshipType[],
+  max_depth: number = 2
+): Promise<KnowledgeGraphResult>
+
+// Example: traversing from "AIDA Framework"
+// → finds: PAS Formula (extends), Case Study: Dollar Shave Club (exemplifies),
+//          Copywriting Checklist (is_part_of), "Hook First" Pattern (related_to)
+```
+
+**Graph visualization in dashboard:** The KALS UI includes a force-directed knowledge graph where nodes are objects and edges are relationships. Clicking a node opens the full object. This gives operators a visual map of their accumulated knowledge.
+
+---
+
+### Agent Integration
+
+KALS is injected into every agent's context retrieval step. Each agent queries with a different intent.
+
+#### Writing Agent
+**Query:** "hooks and storytelling techniques for {topic} targeting {audience}"  
+**Uses:** frameworks (narrative), techniques (hooks), formulas (CTA), templates (script), prompts (generation guidance)  
+**Effect:** every script generated is conditioned on proven copywriting frameworks the operator uploaded
+
+```typescript
+// Writing Agent — knowledge retrieval before script generation
+const kalsContext = await retrieveKnowledge({
+  query: `compelling hooks and opening techniques for "${topic}" content targeting "${audience}"`,
+  categories: ["copywriting", "storytelling", "video_production"],
+  object_types: ["technique", "framework", "formula", "template"],
+  agent: "writing_agent"
+})
+
+// Inject into Kimi prompt:
+systemPrompt += `\n\nRELEVANT KNOWLEDGE BASE:\n${formatObjectsForPrompt(kalsContext.objects)}`
+```
+
+#### Media Agent
+**Query:** "{visual style} cinematography and composition techniques"  
+**Uses:** techniques (camera angles), patterns (visual composition), checklists (shot checklist)  
+**Effect:** image prompts automatically incorporate cinematography vocabulary from uploaded guides
+
+```typescript
+// Media Agent — append KALS cinematography terms to image prompts
+const cinemaContext = await retrieveKnowledge({
+  query: `${visual_style} camera angles composition lighting for ${scene_description}`,
+  categories: ["cinematography", "video_production"],
+  object_types: ["technique", "pattern"],
+  agent: "media_agent"
+})
+
+// Auto-enrich the image prompt
+enrichedPrompt = `${basePrompt}, ${extractPromptKeywords(cinemaContext.objects).join(', ')}`
+```
+
+**Example:** Operator uploads "The Filmmaker's Eye" (PDF). System extracts Dutch Angle (technique: `creates unease, psychological tension`), Rule of Thirds (technique: `balanced composition`), Leading Lines (technique: `draws eye to subject`). Every FLUX image prompt now automatically receives contextually appropriate cinematography keywords — zero manual work.
+
+#### Strategy Agent
+**Query:** "content strategy frameworks for {niche} channel growth"  
+**Uses:** strategies, frameworks, case studies, patterns  
+**Effect:** generated strategies incorporate proven strategic frameworks from the operator's library
+
+#### Research Agent
+**Query:** "research methodologies and competitive analysis frameworks"  
+**Uses:** processes (research SOPs), checklists (analysis checklists), strategies  
+**Effect:** research jobs follow the operator's preferred research frameworks
+
+#### Analytics Agent
+**Query:** "performance analysis frameworks and optimization techniques"  
+**Uses:** frameworks (analytics models), formulas (engagement calculation), case studies  
+**Effect:** optimization recommendations reference known frameworks
+
+#### Monetization Agent
+**Query:** "digital product sales and conversion frameworks for {product_type}"  
+**Uses:** strategies (sales), frameworks (funnel), techniques (objection handling), templates (sales copy)  
+**Effect:** revenue recommendations grounded in the operator's uploaded sales knowledge
+
+---
+
+### UI Design
+
+#### Knowledge Library View (new dashboard view)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  KNOWLEDGE BASE                                    [+ Upload Document]       │
+│                                                                             │
+│  Search knowledge...                              Filter: All Types  ▼     │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  📚 Breakthrough Advertising (Gary Halbert)           marketing       │  │
+│  │  PDF · 312 pages · 47 objects extracted · Uploaded 2026-06-20        │  │
+│  │  Extracted: 12 frameworks · 8 techniques · 6 formulas · 3 templates  │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  🎬 MrBeast Thumbnail Masterclass (YouTube transcript)  cinematography │  │
+│  │  YouTube · 2:14:32 · 28 objects extracted · Uploaded 2026-06-22      │  │
+│  │  Extracted: 5 techniques · 3 checklists · 8 patterns · 2 templates   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  KNOWLEDGE OBJECTS                                                          │
+│  ─────────────────                                                          │
+│  [All] [Frameworks] [Techniques] [Processes] [Templates] [Prompts] [...]   │
+│                                                                             │
+│  ┌────────────────────────────┐  ┌────────────────────────────┐           │
+│  │ FRAMEWORK                  │  │ TECHNIQUE                  │           │
+│  │ AIDA                       │  │ Curiosity Gap Hook         │           │
+│  │ marketing · copywriting    │  │ copywriting · video        │           │
+│  │ Attention → Interest →     │  │ State a surprising fact    │           │
+│  │ Desire → Action            │  │ then withhold the reveal   │           │
+│  │ ✓ Verified  Used 34×       │  │ Used 18×                   │           │
+│  └────────────────────────────┘  └────────────────────────────┘           │
+│                                                                             │
+│  KNOWLEDGE GRAPH                          [View Full Graph →]              │
+│  ┌──────────────────────────────────────────────────┐                      │
+│  │  AIDA ──extends──► PAS Formula                   │                      │
+│  │       ──exemplified by──► Dollar Shave Club Case │                      │
+│  │       ──related to──► Curiosity Gap Technique    │                      │
+│  └──────────────────────────────────────────────────┘                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Upload Flow
+
+```
+[Click "+ Upload Document"]
+     │
+     ▼
+┌─────────────────────────────────────────────────────┐
+│  ADD KNOWLEDGE ASSET                                  │
+│                                                       │
+│  Drag & drop file here, or paste URL                 │
+│  ──────────────────────────────────────              │
+│  📎  Supported: PDF, DOCX, TXT, SRT, VTT, ZIP       │
+│  🔗  URLs: YouTube, web articles, Google Docs        │
+│                                                       │
+│  Title: ______________________________________        │
+│  Source: ______________________________________       │
+│  Categories: [Marketing] [Copywriting] [+ Add]       │
+│  Notes: ______________________________________        │
+│                                                       │
+│  [Upload & Extract]                                   │
+└─────────────────────────────────────────────────────┘
+     │
+     ▼
+[Progress indicator while processing]
+  ✓ File received
+  ✓ Text extracted (312 pages)
+  ⟳ Chunking into segments... (47/89)
+  ○ Analyzing for knowledge objects
+  ○ Generating embeddings
+  ○ Mapping relationships
+```
+
+#### Manual Knowledge Entry
+
+Operators can also add knowledge objects manually (without a source document):
+
+```
+[+ Add Object]
+  Type: [Framework ▼]
+  Name: "The Slippery Slide"
+  Category: [Copywriting]
+  Description: "Joseph Sugarman's principle: every word exists only to get you to read the next word"
+  Content: { "goal": "maintain reader momentum", "method": "..." }
+  Agent Tags: [writing_agent] [strategy_agent]
+  [Save]
+```
+
+---
+
+### Quality & Maintenance
+
+**Verification workflow:** AI extraction is imperfect. Operators can review extracted objects and mark them `verified: true`. Verified objects receive a retrieval weight boost (×1.5) and a UI badge.
+
+**Conflict resolution:** when two documents contain contradictory information (detected via `contradicts` relationship + low cosine similarity), the system flags it in the dashboard: "The uploaded SOP conflicts with 'Method X' from {other_document}. Which should agents prefer?" Operator picks; the other is marked lower-weight.
+
+**Staleness tracking:** objects from older documents that haven't been retrieved in 90+ days and have `usage_count = 0` are marked `stale` and surfaced in a "Review" queue. Operator can re-verify, archive, or delete.
+
+**Cross-workspace learning (future):** Operators who opt in can share extracted knowledge objects (anonymized, no PII) with a shared ContentOS knowledge pool. The pool pre-populates new workspaces with community-verified frameworks across all categories.
+
+---
+
+### Implementation Plan (KALS-specific)
+
+KALS is built as part of **Phase 1** (alongside the Research Intelligence Engine) since both feed the same Knowledge Base tables.
+
+**Week 1 — Infrastructure**
+- [ ] Supabase schema: `knowledge_assets`, `knowledge_chunks`, `knowledge_objects`, `knowledge_relationships`, `knowledge_ingestion_jobs` tables
+- [ ] Vercel Blob: upload endpoint `api/kb/upload.js` (multipart → Blob → create asset record)
+- [ ] Vercel Queue: `contentos-knowledge` ingestion queue
+- [ ] Basic text extraction: PDF (pdf-parse), DOCX (mammoth), TXT, URL (Firecrawl)
+
+**Week 2 — Extraction Pipeline**
+- [ ] Chunking engine: strategy routing by document type
+- [ ] YouTube/SRT transcript ingestion (`yt-dlp` wrapper via shell in Fluid Compute)
+- [ ] AI extraction pass: Kimi-backed typed extractors (framework, technique, process, template, prompt, pattern)
+- [ ] Checklist, formula, case_study, strategy extractors
+- [ ] Embedding pipeline: `text-embedding-3-small` → pgvector
+
+**Week 3 — Retrieval & Relationships**
+- [ ] `match_knowledge_chunks` + `match_knowledge_objects` Supabase functions deployed
+- [ ] `api/kb/retrieve-knowledge.js` retrieval API
+- [ ] Relationship mapper: similarity search → `knowledge_relationships` table
+- [ ] Search log tracking
+- [ ] Agent integration: inject KALS context into Writing Agent and Media Agent
+
+**Week 4 — UI**
+- [ ] Knowledge Library view: asset list, object browser, search
+- [ ] Upload flow + progress indicator (Supabase Realtime for job progress)
+- [ ] Object detail panel (full content display per object type)
+- [ ] Manual object entry form
+- [ ] Knowledge graph visualization (force-directed, D3.js or Cytoscape.js)
+- [ ] Verification workflow (operator review + verify badge)
+
+**Ongoing**
+- [ ] Extend agent integrations: Strategy, Research, Analytics, Monetization agents
+- [ ] Expand extractor types as new document categories are encountered
+- [ ] OCR fallback for image-heavy PDFs (Tesseract via worker)
+- [ ] Google Docs import (Google Docs API OAuth)
+- [ ] Notion import (Notion API + zip export parser)
+
+---
+
+### Summary Table Update
+
+| Dimension | Today | With KALS |
+|---|---|---|
+| **Knowledge source** | Hallucinated / internet research | Operator's curated library + internet research |
+| **Script grounding** | Topic string → generic AI | Topic + KB frameworks + competitor hooks + operator's playbooks |
+| **Image prompts** | Generic description | Enriched with cinematography vocab from uploaded guides |
+| **Strategy quality** | Generic best practices | Grounded in uploaded strategies + real competitor data |
+| **System learning** | None | Compounds: every upload makes every agent permanently smarter |
+| **Knowledge types** | None | 10 typed objects across 13 categories, fully semantic-searchable |
+
+---
+
+*End of Knowledge Acquisition & Learning System specification.*
+
+---
+
+## Summary: Current vs End State
+
+| Dimension | Today (Phase 0) | End State (Phase 4) |
+|---|---|---|
+| **User input required** | Every step (manual) | Initial brief only |
+| **Content research** | None | Continuous, multi-platform |
+| **Strategy grounding** | Hallucinated | Evidence-based (real competitor data + operator library) |
+| **Script quality** | Generic AI output | RAG-grounded: hooks library + KB frameworks + cinematography |
+| **Media production** | HTML text compositions only | Real MP4 with AI images + voice + music |
+| **Image prompts** | Generic description | Enriched with cinematography vocabulary from KALS |
+| **Publishing** | Manual trigger | Fully automated, optimized timing |
+| **Analytics** | Demo data | Real per-post performance tracking |
+| **Learning** | None | Continuous closed-loop: analytics → optimization → KB update |
+| **Operator knowledge** | Unused | 10-type structured KB, semantic search, agent-accessible |
+| **Revenue attribution** | Tracked in product table | Content → lead → sale attribution chain |
+| **Multi-brand** | Single workspace | N workspaces, cross-learning |
+| **Self-improvement** | None | Provably better results month over month |
+
+---
+
 *This document is the canonical architectural reference for ContentOS v2.0. All implementation decisions should be evaluated against this vision. Phase boundaries are estimates — pace them to available resources and real-world performance signals.*
