@@ -100,7 +100,7 @@ function App() {
           {activeView === 'create' && <CreateView channels={channels} createVideo={createVideo} />}
           {activeView === 'content' && <ContentView videos={videos} updateVideo={updateVideo} removeVideo={removeVideo} />}
           {activeView === 'calendar' && <CalendarView videos={videos} channels={channels} updateVideo={updateVideo} />}
-          {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} />}
+          {activeView === 'analytics' && <AnalyticsView videos={videos} channels={channels} workspaceId={workspaceId} />}
           {activeView === 'monetize' && <MonetizeView products={products} videos={videos} />}
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
           {activeView === 'settings' && <SettingsView dbMode={dbMode} />}

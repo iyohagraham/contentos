@@ -182,6 +182,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **9 Agents:** strategy, writing, research, planning, analytics, optimization, media, publishing, notification
 - **Publishing:** Postiz multi-channel (single + batch)
 - **Brand Monitoring (Phase 10):** Notification Agent (pure-DB scan for failures + approval-gate items, de-duped) + `/api/monitor/status` aggregation + `MonitorView` dashboard (job queue, agent activity, content pipeline, routing mix, alerts w/ ack/resolve, insights)
+- **Analytics (Phase 8):** `api/analytics/{track,aggregate,insights,revenue}.js` — per-post performance ingest (idempotent upsert), cross-platform aggregation, AI-powered learning insights (grounded in real metrics → `learning_insights`), revenue attribution (UTM-match → video). `AnalyticsView` upgraded to merge Postiz + new DB data + revenue panel + insight generation
 - **Frontend:** Knowledge, Research, Intelligence, Agents, Skills, WorkspaceConfig (Brand Mode) views
 - **Auth scaffold:** dormant until `VITE_SUPABASE_*` set
 
@@ -190,7 +191,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI ✅, Notification Agent ✅, monitoring dashboard ✅. Remaining: a 30-day unattended test run, and external alert delivery (email/push) — alerts are currently in-app only.
 
 ### Planned / Not Started
-- Remaining agent: **Monetization** (Notification ✅ built; `analytics.js` ✅ serves as the Analysis agent)
+- Remaining agent: **Monetization** (Notification ✅ built; `analytics.js` ✅ serves as the Analysis agent) — in progress
 - OpenMontage worker render path (heavy compositions via Remotion/HyperFrames) behind the existing RenderProvider interface
 - Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning not implemented
 - Real OpenAI/DALL·E image adapter (currently a stub that falls through to Runware)
@@ -305,6 +306,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Phase 8 Analytics (track / aggregate / insights / revenue)
+- **What:** Added `api/analytics/{track,aggregate,insights,revenue}.js`. `track.js` ingests per-post performance (idempotent `upsert` on `video_post_id,snapshot_date`, auto-computes engagement_rate + performance_score, optional revenue_event side-write); `aggregate.js` does cross-platform aggregation over `post_analytics`+`revenue_events`+`platform_snapshots` (totals, byPlatform, byDate, topPosts, followerTrend); `insights.js` runs the analytics base agent to surface evidence-grounded optimization insights → persists `learning_insights`; `revenue.js` records + reports revenue events with UTM-match attribution. `AnalyticsView` upgraded to merge Postiz data + the new DB aggregation + a revenue attribution panel + a "Generate insights" button. All endpoints `coerceWorkspaceId`.
+- **Why:** Phase 8 was the last PLANNED roadmap phase needed to close the autonomous loop (Planning → Writing → Media → Publishing → **Analytics** → Optimization). Without persisted analytics + insight generation, the Optimization Agent had nothing concrete to learn from.
+- **Impact:** Closes Phase 8. `node --check` + `vite build` green. No schema change (uses existing `post_analytics`/`revenue_events`/`learning_insights`/`platform_snapshots` tables). Revenue + insights surface in the existing Analytics view alongside Postiz data. Groundwork for the Optimization Agent to consume `learning_insights`.
 
 ### 2026-06-24 — App.jsx split into per-view files
 - **What:** Split the ~2227-line `src/App.jsx` into 16 per-view files under `src/views/` (Dashboard, Strategy, Create, Content, Calendar, Analytics, Monetize, Channels, Settings — newly extracted; + the 7 existing agent-era views) + a shared `src/lib/ui.jsx` exporting `StatCard`, `QuickActionCard`, `PLATFORMS`. App.jsx is now the slim sidebar-nav + view-dispatch shell (~126 lines) and imports the 16 views. `NavItem` stayed in App.jsx (sidebar-only). Extraction was done verbatim by copying exact `sed` line-ranges (no transcription) and giving each a uniform preamble (React hooks + App.jsx's full lucide icon block — unused icons tree-shaken — + the shared ui import) + conditional `postiz`/`auth`+`seed` imports where the view used them; `export default <Name>View` appended.

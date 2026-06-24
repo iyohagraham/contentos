@@ -15,9 +15,13 @@ import {
 import { StatCard, QuickActionCard, PLATFORMS } from '../lib/ui'
 import { postiz } from '../lib/postizClient.js'
 
-function AnalyticsView({ videos, channels }) {
+function AnalyticsView({ videos, channels, workspaceId }) {
   const [analytics, setAnalytics] = useState(null)
+  const [dbAgg, setDbAgg] = useState(null)
+  const [revenue, setRevenue] = useState(null)
+  const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [generatingInsights, setGeneratingInsights] = useState(false)
   const [period, setPeriod] = useState('30d')
 
   useEffect(() => {
@@ -26,17 +30,39 @@ function AnalyticsView({ videos, channels }) {
 
   const fetchAnalytics = async () => {
     setLoading(true)
+    setDbAgg(null)
+    setRevenue(null)
     try {
-      const res = await fetch(`/api/analytics?period=${period}`)
-      const data = await res.json()
-      if (data.success) {
-        setAnalytics(data.analytics)
-      }
+      // Postiz-backed real analytics (legacy endpoint) — submit alongside the new DB aggregation.
+      const [postizRes, aggRes, revRes] = await Promise.all([
+        fetch(`/api/analytics?period=${period}`),
+        workspaceId ? fetch(`/api/analytics/aggregate?workspace_id=${workspaceId}&period=${period}`) : Promise.resolve(null),
+        workspaceId ? fetch(`/api/analytics/revenue?workspace_id=${workspaceId}&period=${period}`) : Promise.resolve(null)
+      ])
+      const pt = await postizRes.json()
+      if (pt.success) setAnalytics(pt.analytics)
+      if (aggRes && aggRes.ok) setDbAgg(await aggRes.json())
+      if (revRes && revRes.ok) setRevenue(await revRes.json())
     } catch (err) {
       console.error('Analytics fetch error:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const generateInsights = async () => {
+    if (!workspaceId) return
+    setGeneratingInsights(true)
+    try {
+      const res = await fetch('/api/analytics/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, period })
+      })
+      const data = await res.json()
+      if (res.ok) setInsights(data.insights || [])
+    } catch { /* non-fatal */ }
+    setGeneratingInsights(false)
   }
 
   const published = videos.filter(v => v.status === 'published')
@@ -287,10 +313,70 @@ function AnalyticsView({ videos, channels }) {
           )}
         </div>
       </div>
+
+      {/* Revenue + Insights — backed by the new /api/analytics/* endpoints */}
+      {workspaceId && (dbAgg || revenue) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Revenue attribution */}
+          {revenue && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+              <h3 className="font-semibold mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-green-500" />Revenue Attribution</h3>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-slate-950 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Total Revenue</p>
+                  <p className="text-lg font-bold text-green-400">${(revenue.totalRevenue || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-slate-950 rounded-lg p-3">
+                  <p className="text-xs text-slate-500">Attributed to content</p>
+                  <p className="text-lg font-bold text-green-400">${(revenue.attributedRevenue || 0).toLocaleString()}</p>
+                </div>
+              </div>
+              {revenue.byVideo?.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-slate-500 font-semibold">Top revenue-driving videos:</p>
+                  {revenue.byVideo.slice(0, 5).map((v, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-slate-300 truncate flex-1">{v.title}</span>
+                      <span className="text-green-400 ml-2">${v.revenue.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {revenue.totalRevenue === 0 && <p className="text-xs text-slate-500">No revenue events tracked for this period.</p>}
+            </div>
+          )}
+
+          {/* Learning insights */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2"><Lightbulb className="w-4 h-4 text-amber-400" />Learning Insights</h3>
+              <button onClick={generateInsights} disabled={generatingInsights}
+                className="text-xs bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors flex items-center gap-1.5">
+                {generatingInsights ? 'Analyzing...' : 'Generate'}
+              </button>
+            </div>
+            {insights?.length > 0 && (
+              <div className="space-y-2">
+                {insights.map((ins, i) => (
+                  <div key={i} className="bg-slate-950 rounded-lg p-2.5 border border-slate-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded px-1.5 py-0.5">{ins.insight_type?.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-500">{ins.impact} impact</span>
+                    </div>
+                    <p className="text-sm font-medium">{ins.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{ins.description}</p>
+                    {ins.recommendation && <p className="text-xs text-cyan-400 mt-1">→ {ins.recommendation}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!insights && <p className="text-xs text-slate-500">Click "Generate" to analyze your performance data and surface optimization insights grounded in real metrics.</p>}
+            {insights?.length === 0 && <p className="text-xs text-slate-500">Not enough tracked posts to generate insights yet.</p>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-/* ─── MONETIZE ─── */
 
 export default AnalyticsView
