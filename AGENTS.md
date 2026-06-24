@@ -195,9 +195,9 @@ Built and committed (localStorage mode works today; cloud features activate once
 | Item | Severity | Notes |
 |---|---|---|
 | `workspace_id: 'default'` sentinel vs UUID columns | ✅ Resolved | `coerceWorkspaceId()` now guards ALL server endpoints (skills + knowledge/research/intelligence/planning). 'default' → `NULL` (globally-scoped) on every UUID column + match RPC (`p_workspace_id IS NULL OR …`). Verified: all touched `workspace_id` cols are nullable, so null inserts cleanly. Optional follow-up: `useWorkspace` create-or-get a real workspace row on login so writes are properly owned once Supabase+Auth go live. |
-| Dead social connectors | Low | `src/lib/social/{tiktok,instagram,youtube,facebook,manager,scheduler}.js` no longer imported — safe to delete |
-| Legacy `api/_kimi.js` | Low | superseded by `_providers/text.js` |
-| Client-side `src/lib/fal.js` | Low | superseded by server routes; key-exposure risk if reused |
+| Dead social connectors | ✅ Resolved | Deleted the dead manager-based stack: `api/social.js` + `src/lib/social/{manager,scheduler,tiktok,instagram,youtube,facebook}.js`. Verified the frontend only ever calls `/api/postiz/*`; nothing reaches `/api/social`. **Kept** `src/lib/social/postiz.js` (7 importers: publishing agent + postiz routes + social catch-all + analytics) and `api/social/[...action].js` (live Postiz catch-all). |
+| Legacy `api/_kimi.js` | ✅ Resolved | Deleted — superseded by `_providers/text.js`; zero importers. |
+| Client-side `src/lib/fal.js` | ✅ Resolved | Deleted — superseded by server routes, key-exposure risk eliminated; zero importers. |
 | `src/App.jsx` ~2300 lines | Medium | inline views; split into per-view files + a WorkspaceContext |
 | Frontend bundle ~571 KB | Low | `@vercel/blob/client` + growing App.jsx; code-split when convenient |
 | Stale root docs | Low | `CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md` are outdated — this file supersedes them |
@@ -298,6 +298,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Dead-code removal (social manager stack + fal.js + _kimi.js)
+- **What:** Deleted 9 files: `api/social.js`, `src/lib/social/{manager,scheduler,tiktok,instagram,youtube,facebook}.js`, `src/lib/fal.js`, `api/_kimi.js`. Kept `src/lib/social/postiz.js` (7 importers) + `api/social/[...action].js` (live Postiz catch-all).
+- **Why:** The old manager/scheduler/4-connector stack was the pre-Postiz direct-connect layer. The frontend exclusively uses `/api/postiz/*` (verified via `grep` on `src/`); nothing calls `/api/social`. `fal.js` was a client-side FAL wrapper (superseded by server routes — key-exposure risk); `_kimi.js` was superseded by `_providers/text.js`. **Note:** AGENTS.md's prior "social connectors safe to delete" was misleading — they were chained as `api/social.js → scheduler → manager → {4 platforms}`, so the whole cluster had to go as a unit; deleting only the 4 platform files would have broken `api/social.js`'s import.
+- **Impact:** Removes the dead direct-connect routing surface (`/api/social` now 404s — no caller), eliminates the `fal.js` key-exposure risk, cuts source noise. `vite build` + `node --check` on all postiz/social catch-all files green. Bundle size unchanged (fal.js was already tree-shaken from the bundle as unused). Did NOT touch Postiz routing. Next debt target: split `App.jsx` (~2300 lines).
 
 ### 2026-06-24 — coerceWorkspaceId rolled out across all older endpoints
 - **What:** Applied `coerceWorkspaceId()` to the 10 remaining endpoints that passed the raw `'default'` sentinel into UUID columns: `knowledge/{ingest,search,rag,assets}`, `research/{scan,results}`, `intelligence/{analyze,playbooks}`, `planning/{calendar,campaign}`. Each now computes `wsId = coerceWorkspaceId(workspace_id)` after the presence check and uses it for every DB column write, `.eq()` filter, match-RPC `p_workspace_id`, and `enqueue()`. Imported `coerceWorkspaceId` from `_db.js` in each.
