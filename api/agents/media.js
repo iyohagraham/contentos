@@ -186,12 +186,12 @@ export default async function mediaAgent({ workspace_id, video_id, mode = 'image
 async function generateSceneImage(scene, brandStyle, index, videoId) {
   const prompt = `${scene.visual_prompt}. ${brandStyle}. Professional video production quality.`
   const result = await generateImage(prompt, {
-    model: index === 0 ? 'fal-ai/flux/pro' : 'fal-ai/flux/dev',  // Pro for hook (most important), Dev for body
+    model: index === 0 ? 'pro' : 'dev',  // best quality for hook frame, dev for body (provider maps the tier)
     width: 1920,
     height: 1080,
     numImages: 1
   })
-  return result?.images?.[0]?.url || result?.image?.url || null
+  return result?.url || result?.images?.[0]?.url || null
 }
 
 function buildSceneList(script, title, topic) {
