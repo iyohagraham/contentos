@@ -262,4 +262,4 @@ Return JSON array:
   }
 }
 
-export { ingestHandler: handler }
+export { handler as ingestHandler }

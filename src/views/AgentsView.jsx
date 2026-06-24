@@ -10,6 +10,7 @@ const AGENTS = [
   { id: 'research', label: 'Research Agent', icon: Search, color: 'text-blue-400', desc: 'Scan competitors, trends, and niche opportunities', inputs: [{ key: 'query_type', type: 'select', options: ['competitors', 'trends', 'niche'], label: 'Research Type', default: 'trends' }, { key: 'query', type: 'text', label: 'Query (optional)' }] },
   { id: 'planning', label: 'Planning Agent', icon: Calendar, color: 'text-purple-400', desc: 'Generate a 30-day content calendar from strategy', inputs: [{ key: 'horizon_days', type: 'number', label: 'Days Ahead', default: 30 }] },
   { id: 'writing', label: 'Writing Agent', icon: PenTool, color: 'text-green-400', desc: 'Write a complete script with RAG-enhanced knowledge and playbooks', inputs: [{ key: 'video_id', type: 'text', label: 'Video ID (from Content view)' }, { key: 'title', type: 'text', label: 'Or enter title directly' }, { key: 'topic', type: 'text', label: 'Topic / angle' }] },
+  { id: 'media', label: 'Media Agent', icon: Film, color: 'text-pink-400', desc: 'Generate FLUX scene images + Qwen-TTS voice narration. Optionally add Wan 2.7 motion.', inputs: [{ key: 'video_id', type: 'text', label: 'Video ID (must have script)' }, { key: 'mode', type: 'select', options: ['images', 'motion_test', 'full'], label: 'Mode', default: 'images' }] },
   { id: 'analytics', label: 'Analytics Agent', icon: BarChart3, color: 'text-amber-400', desc: 'Sync post performance metrics and channel snapshots', inputs: [{ key: 'lookback_days', type: 'number', label: 'Lookback Days', default: 30 }] },
   { id: 'optimization', label: 'Optimization Agent', icon: TrendingUp, color: 'text-orange-400', desc: 'Run the learning loop — analyze patterns, update strategy weights', inputs: [] }
 ]
@@ -202,6 +203,35 @@ function ResultDisplay({ agentId, result }) {
           </div>
         ))}
         {result.calendar_items?.length > 5 && <p className="text-xs text-slate-500">+{result.calendar_items.length - 5} more</p>}
+      </div>
+    )
+  }
+
+  if (agentId === 'media') {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Scenes</p>
+            <p className="font-bold text-white">{result.scenes_generated}/{result.scenes_total}</p>
+          </div>
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Voice</p>
+            <p className={`font-bold ${result.voice_audio_url ? 'text-green-400' : 'text-slate-500'}`}>{result.voice_audio_url ? 'Ready' : 'None'}</p>
+          </div>
+          <div className="bg-slate-950 rounded p-2 border border-slate-800 text-center">
+            <p className="text-slate-500">Motion</p>
+            <p className="font-bold text-white">{result.motion_clips || 0}</p>
+          </div>
+        </div>
+        {result.ready_to_assemble && (
+          <div className="bg-green-900/20 border border-green-700/40 rounded-lg p-3 text-xs text-green-400">
+            Ready to assemble — call POST /api/production/assemble with video_id: {result.video_id}
+          </div>
+        )}
+        {!result.ready_to_assemble && (
+          <p className="text-xs text-amber-400">Partial — some assets missing. Check FAL_KEY and BLOB_READ_WRITE_TOKEN env vars.</p>
+        )}
       </div>
     )
   }
