@@ -162,7 +162,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Knowledge System (RAG):** ingest URL/YouTube/GitHub/text/PDF → chunk → embed → pgvector search; injected into all agents
 - **Skill System:** ingest PDFs/SOPs/playbooks → extract reusable skills (hooks/frameworks/patterns) → search/apply; injected into all agents
 - **Research Intelligence:** competitor/trend/niche scan (AI-synthesized) + weekly cron
-- **Channel Intelligence:** DNA extraction + playbooks from a channel URL (metadata-based)
+- **Channel Intelligence:** **real YouTube ingestion** (keyless Atom RSS → actual recent videos + view/like counts → `channel_content_samples` with performance tiers → DNA grounded in real data) + playbooks + version builder. IG/TikTok use best-effort oEmbed, else honest AI-estimate (`data_confidence: low`)
 - **Content Planning:** calendar + campaign generation with 5-factor opportunity scoring
 - **Media Engine (Priority 1):** Runware assets → voice → composition manifest → **FFmpeg render** → multi-format export (9:16/16:9/1:1); live-tested end-to-end
 - **Model Router:** provider/model-agnostic routing (registry/scoring/rules), candidate fallback, decision logging; 10/10 selection tests pass
@@ -172,7 +172,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Auth scaffold:** dormant until `VITE_SUPABASE_*` set
 
 ### In Progress
-- **Channel Intelligence (Priority 5):** make it ingest REAL YouTube/IG/TikTok data (currently AI-synthesized from a URL/metadata, not scraped)
+- **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ done (keyless RSS). Still pending: a real **Instagram/TikTok** source (needs an API/scraping provider — no keyless channel feed exists), and the "clone/adapt/improve strategy → new niche" action surfaced in the UI.
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI done; needs monitoring dashboard, Notification Agent, 30-day test run
 
 ### Planned / Not Started
@@ -236,6 +236,9 @@ BLOB_READ_WRITE_TOKEN=        # SECRET (Vercel Blob — auto-set by `vercel blob
 # Publishing (optional, when Postiz is deployed)
 POSTIZ_URL=
 POSTIZ_API_KEY=
+# Channel Intelligence (optional — YouTube ingestion works KEYLESS via RSS; this only
+# enriches with subscriber/total-view counts)
+YOUTUBE_API_KEY=
 # Cron (optional)
 CRON_SECRET=                  # protects cron endpoints
 CRON_MAX_JOBS=                # default 5
@@ -252,7 +255,7 @@ Priority order (from the execution directives):
 2. 🟡 Content Intelligence — exists, but AI-synthesized; deepen with real ingestion
 3. ✅ Knowledge Base
 4. ✅ Skill System
-5. **▶ Channel Intelligence — real YouTube/IG/TikTok ingestion (IN PROGRESS, current focus)**
+5. **▶ Channel Intelligence — YouTube real ingestion ✅ (keyless RSS); IG/TikTok real source still needed**
 6. ⏳ Autonomous Content Operations (monitoring, notification agent, 30-day run)
 
 ## Critical Decisions
@@ -282,6 +285,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Channel Intelligence: real ingestion (Priority 5)
+- **What:** Added `api/intelligence/_sources.js` (provider-agnostic channel source layer) and rewired `analyze.js` to ingest REAL recent videos. YouTube uses the public Atom RSS feed (`feeds/videos.xml?channel_id=`) — keyless, serverless-friendly — to get actual titles, descriptions, view + like counts; samples are stored in `channel_content_samples` with a median-relative `performance_tier`, and DNA extraction is now grounded in the real data (`data_confidence` high/low). IG/TikTok do best-effort oEmbed.
+- **Why:** The old analyzer asked the model to recall a channel from memory (hallucination-prone). Real data → real, defensible DNA.
+- **Impact:** Channel analysis is now evidence-based for YouTube without any API key (optional `YOUTUBE_API_KEY` only adds subscriber counts). IG/TikTok still need a real source (API/scraping) — that's the remaining P5 gap. Live-verified against @mkbhd (parsed real videos with real view counts).
 
 ### 2026-06-24 — Model Router subsystem
 - **What:** Added a provider/model-agnostic Model Router (`src/lib/router/*`) + server adapter bootstrap (`api/_providers/router-adapters.js`) + `model_routing_log` table. Media Engine now routes all asset generation through it.

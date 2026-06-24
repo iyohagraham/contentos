@@ -9,19 +9,32 @@
 import { getServerSupabase } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { embed } from '../_providers/embed.js'
+import { fetchChannelSamples, performanceTier, detectPlatform } from './_sources.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { workspace_id, channel_url, platform: explicitPlatform, sample_count = 10 } = req.body
+  const { workspace_id, channel_url, platform: explicitPlatform, sample_count = 15 } = req.body
   if (!workspace_id || !channel_url) return res.status(400).json({ error: 'workspace_id and channel_url required' })
 
   const db = getServerSupabase()
-  const platform = explicitPlatform || detectPlatform(channel_url)
 
   try {
-    // Step 1: Fetch channel metadata
-    const meta = await fetchChannelMeta(channel_url, platform)
+    // Step 1: Fetch REAL recent content samples (keyless for YouTube via Atom RSS).
+    const ingest = await fetchChannelSamples(channel_url, { max: sample_count })
+    const platform = explicitPlatform || ingest.platform || detectPlatform(channel_url)
+    const meta = {
+      platform,
+      channel_url,
+      handle: ingest.channel?.handle || (channel_url.match(/@([a-zA-Z0-9_.-]+)/) || [])[1] || null,
+      display_name: ingest.channel?.display_name || null,
+      subscribers: ingest.channel?.subscribers || null,
+      total_views: ingest.channel?.total_views || null,
+      video_count: ingest.channel?.video_count || null,
+      data_source: ingest.source,
+      real_samples: !!(ingest.supported && ingest.samples.length)
+    }
+    const samples = ingest.samples || []
 
     // Step 2: Create analysis record
     let analysis = { id: `local_${Date.now()}` }
@@ -29,14 +42,36 @@ export default async function handler(req, res) {
       const { data } = await db.from('channel_analyses').insert({
         workspace_id, channel_url, platform,
         handle: meta.handle, display_name: meta.display_name,
-        subscribers: meta.subscribers, video_count: meta.video_count,
+        subscribers: meta.subscribers, total_views: meta.total_views, video_count: meta.video_count,
         videos_analyzed: 0, sample_period_days: 90
       }).select().single()
       analysis = data || analysis
     }
 
-    // Step 3: AI DNA extraction
-    const dna = await extractDNA(channel_url, meta, platform, sample_count)
+    // Step 2b: Persist the real samples with a performance tier vs the set median.
+    if (db && samples.length) {
+      const sortedViews = samples.map(s => s.views).filter(v => v > 0).sort((a, b) => a - b)
+      const median = sortedViews.length ? sortedViews[Math.floor(sortedViews.length / 2)] : 0
+      for (const s of samples) {
+        await db.from('channel_content_samples').insert({
+          analysis_id: analysis.id,
+          video_url: s.video_url,
+          title: s.title,
+          views: s.views,
+          likes: s.likes,
+          comments: s.comments,
+          performance_tier: performanceTier(s.views, median),
+          metadata: {
+            description: (s.description || '').slice(0, 1000),
+            published_at: s.published_at,
+            thumbnail_url: s.thumbnail_url
+          }
+        }).catch(() => {})
+      }
+    }
+
+    // Step 3: AI DNA extraction — grounded in the REAL samples when available.
+    const dna = await extractDNA(channel_url, meta, platform, samples)
 
     // Step 4: Generate playbooks from DNA
     const playbooks = await generatePlaybooks(dna, workspace_id, analysis.id, db)
@@ -52,7 +87,7 @@ export default async function handler(req, res) {
         monetization_dna: dna.monetization_dna,
         growth_dna: dna.growth_dna,
         scores: dna.scores,
-        videos_analyzed: dna.videos_analyzed || 0,
+        videos_analyzed: samples.length,
         analyzed_at: new Date().toISOString()
       }).eq('id', analysis.id)
 
@@ -70,6 +105,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       analysis_id: analysis.id,
       meta,
+      data_source: meta.data_source,
+      real_samples: meta.real_samples,
+      samples_analyzed: samples.length,
       dna,
       playbooks,
       versions
@@ -80,43 +118,30 @@ export default async function handler(req, res) {
   }
 }
 
-async function fetchChannelMeta(url, platform) {
-  const meta = { platform, channel_url: url }
+async function extractDNA(channelUrl, meta, platform, samples = []) {
+  const hasReal = Array.isArray(samples) && samples.length > 0
+  const sampleBlock = hasReal
+    ? samples
+        .map((s, i) => {
+          const v = s.views ? `${s.views.toLocaleString()} views` : 'views n/a'
+          const l = s.likes ? `, ${s.likes.toLocaleString()} likes` : ''
+          const d = s.description ? `\n   ${s.description.slice(0, 160).replace(/\s+/g, ' ')}` : ''
+          return `${i + 1}. "${s.title}" — ${v}${l}${d}`
+        })
+        .join('\n')
+    : ''
 
-  if (platform === 'youtube') {
-    const videoId = url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1]
-    const handle = url.match(/@([a-zA-Z0-9_.-]+)/)?.[1]
+  const framing = hasReal
+    ? `Analyze this ${platform} channel using its ${samples.length} MOST RECENT REAL videos (with real view counts) listed below. Base EVERY conclusion on the ACTUAL titles, topics, and view distribution — note which titles over/under-performed vs the others, the real title/hook style, the real topic mix, and the posting cadence implied by the data. Do NOT invent stats.`
+    : `You could NOT fetch this channel's real videos (platform without a keyless feed, or resolution failed). Analyze from the URL/handle and comparable channels, and set data_confidence to "low".`
 
-    if (videoId) {
-      try {
-        const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`)
-        if (res.ok) {
-          const data = await res.json()
-          meta.display_name = data.author_name
-          meta.handle = data.author_url?.split('/').pop() || handle
-          meta.thumbnail_url = data.thumbnail_url
-        }
-      } catch { /* continue with partial meta */ }
-    } else if (handle) {
-      meta.handle = handle
-      meta.display_name = `@${handle}`
-    }
-  }
-
-  return meta
-}
-
-async function extractDNA(channelUrl, meta, platform, sampleCount) {
-  const prompt = `You are a content intelligence analyst. Analyze this ${platform} channel and extract its complete DNA blueprint.
+  const prompt = `You are a content intelligence analyst. ${framing}
 
 Channel: ${channelUrl}
 Display Name: ${meta.display_name || 'Unknown'}
 Handle: ${meta.handle || 'Unknown'}
-Platform: ${platform}
-
-Based on your knowledge of this channel (or channels like it), extract detailed DNA across 4 dimensions.
-If you don't know this specific channel, analyze based on the URL structure and platform.
-
+Platform: ${platform}${meta.subscribers ? `\nSubscribers: ${meta.subscribers.toLocaleString()}` : ''}
+${hasReal ? `\nRECENT VIDEOS (real data):\n${sampleBlock}\n` : ''}
 Return comprehensive JSON:
 {
   "channel_dna": {
@@ -172,8 +197,9 @@ Return comprehensive JSON:
     "posting_consistency": 8,
     "audience_engagement": 7
   },
-  "videos_analyzed": ${sampleCount},
-  "key_insights": ["insight1", "insight2", "insight3"]
+  "videos_analyzed": ${samples.length},
+  "data_confidence": "${hasReal ? 'high' : 'low'}",
+  "key_insights": ["insight grounded in the real videos above", "insight2", "insight3"]
 }`
 
   return textGenerateJSON(prompt, { maxTokens: 2000 })
@@ -270,11 +296,4 @@ function generateVersions(dna, sourcePlatform) {
       projected_performance: { discovery_rate: '3-5x higher', conversion_rate: '40-60% lower per view' }
     }
   ]
-}
-
-function detectPlatform(url) {
-  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube'
-  if (url.includes('tiktok.com')) return 'tiktok'
-  if (url.includes('instagram.com')) return 'instagram'
-  return 'unknown'
 }
