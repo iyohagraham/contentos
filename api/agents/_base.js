@@ -5,6 +5,7 @@
 import { getServerSupabase } from '../_db.js'
 import { textChat } from '../_providers/text.js'
 import { buildRAGContext } from '../knowledge/rag.js'
+import { buildSkillContext } from '../skills/_context.js'
 
 /**
  * Execute an agent run with full logging and RAG context.
@@ -49,16 +50,17 @@ export async function runAgent({
   }
 
   try {
-    // RAG context retrieval
+    // RAG + learned-skill context retrieval (both safe: each returns '' on failure)
     const ragContext = task ? await buildRAGContext(workspaceId, task) : ''
+    const skillContext = task ? await buildSkillContext(workspaceId, task) : ''
 
     let result
     if (run) {
       // Delegated run function (complex agents)
-      result = await run({ db, ragContext, agentRunId })
+      result = await run({ db, ragContext, skillContext, agentRunId })
     } else {
-      // Direct AI call
-      const fullSystemPrompt = [systemPrompt, ragContext].filter(Boolean).join('\n\n')
+      // Direct AI call — append learned skills alongside RAG context
+      const fullSystemPrompt = [systemPrompt, ragContext, skillContext].filter(Boolean).join('\n\n')
       const { content } = await textChat(messages, { systemPrompt: fullSystemPrompt, maxTokens })
       result = { content }
     }
@@ -94,6 +96,7 @@ export async function runAgent({
  */
 export async function agentAI(workspaceId, task, systemPrompt, userMessage, { maxTokens = 1500 } = {}) {
   const ragContext = await buildRAGContext(workspaceId, task)
-  const fullSystem = [systemPrompt, ragContext].filter(Boolean).join('\n\n')
+  const skillContext = await buildSkillContext(workspaceId, task)
+  const fullSystem = [systemPrompt, ragContext, skillContext].filter(Boolean).join('\n\n')
   return textChat([{ role: 'user', content: userMessage }], { systemPrompt: fullSystem, maxTokens })
 }

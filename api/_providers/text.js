@@ -55,8 +55,16 @@ export async function textGenerate(prompt, opts = {}) {
 export function parseJSON(text) {
   let t = (text || '').trim()
   if (t.startsWith('```')) t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
-  const first = t.indexOf('{'), last = t.lastIndexOf('}')
-  if (first !== -1 && last !== -1 && (first > 0 || last < t.length - 1)) t = t.slice(first, last + 1)
+  // Slice to the outermost JSON container — array OR object, whichever opens first.
+  // (Object-centric slicing would strip the brackets off a bare [ ... ] response.)
+  const fo = t.indexOf('{'), fa = t.indexOf('[')
+  let start = -1, close = '}'
+  if (fa !== -1 && (fo === -1 || fa < fo)) { start = fa; close = ']' }
+  else if (fo !== -1) { start = fo; close = '}' }
+  if (start !== -1) {
+    const last = t.lastIndexOf(close)
+    if (last > start) t = t.slice(start, last + 1)
+  }
   try { return JSON.parse(t) } catch { return JSON.parse(jsonrepair(t)) }
 }
 

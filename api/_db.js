@@ -23,6 +23,18 @@ export function isSupabaseReady() {
   return !!url
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Coerce a workspace identifier to a real UUID or null.
+ * The frontend uses the sentinel string 'default' before a workspace is
+ * resolved; passing that into a UUID column/param throws "invalid input syntax
+ * for type uuid". Returning null instead scopes the query/insert globally.
+ */
+export function coerceWorkspaceId(id) {
+  return (typeof id === 'string' && UUID_RE.test(id)) ? id : null
+}
+
 /**
  * Execute a Supabase RPC function (stored procedure).
  */

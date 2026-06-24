@@ -10,7 +10,7 @@ import {
   Link as LinkIcon, Package, CreditCard, TrendingDown, Calendar as CalendarIcon,
   MessageSquare, ThumbsUp, Share2, Bookmark, MoreVertical, Filter, Search,
   Smartphone, Monitor, Tv, Hash as HashIcon, Brain, Lightbulb, Wand2,
-  Database, HardDrive, RefreshCw, Bot, BookOpen
+  Database, HardDrive, RefreshCw, Bot, BookOpen, GraduationCap
 } from 'lucide-react'
 import { useChannels, useVideos, useProducts, useStrategies, useDbMode } from './lib/db/useStore.js'
 import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format.js'
@@ -19,6 +19,7 @@ import { postiz } from './lib/postizClient.js'
 import { authEnabled, signOut } from './lib/auth.js'
 import { useWorkspace } from './lib/useWorkspace.js'
 import KnowledgeView from './views/KnowledgeView.jsx'
+import SkillsView from './views/SkillsView.jsx'
 import ResearchView from './views/ResearchView.jsx'
 import IntelligenceView from './views/IntelligenceView.jsx'
 import AgentsView from './views/AgentsView.jsx'
@@ -76,6 +77,7 @@ function App() {
           <NavItem icon={Globe} label="Channels" active={activeView === 'channels'} onClick={() => setActiveView('channels')} expanded={sidebarOpen} />
           {sidebarOpen && <div className="px-3 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-semibold">Intelligence</div>}
           <NavItem icon={Brain} label="Knowledge" active={activeView === 'knowledge'} onClick={() => setActiveView('knowledge')} expanded={sidebarOpen} />
+          <NavItem icon={GraduationCap} label="Skills" active={activeView === 'skills'} onClick={() => setActiveView('skills')} expanded={sidebarOpen} />
           <NavItem icon={Search} label="Research" active={activeView === 'research'} onClick={() => setActiveView('research')} expanded={sidebarOpen} />
           <NavItem icon={Zap} label="Intelligence" active={activeView === 'intelligence'} onClick={() => setActiveView('intelligence')} expanded={sidebarOpen} />
           <NavItem icon={Bot} label="Agents" active={activeView === 'agents'} onClick={() => setActiveView('agents')} expanded={sidebarOpen} />
@@ -110,6 +112,7 @@ function App() {
           {activeView === 'channels' && <ChannelsView channels={channels} createChannel={createChannel} updateChannel={updateChannel} removeChannel={removeChannel} />}
           {activeView === 'settings' && <SettingsView dbMode={dbMode} />}
           {activeView === 'knowledge' && <KnowledgeView workspaceId={workspaceId} />}
+          {activeView === 'skills' && <SkillsView workspaceId={workspaceId} />}
           {activeView === 'research' && <ResearchView workspaceId={workspaceId} />}
           {activeView === 'intelligence' && <IntelligenceView workspaceId={workspaceId} />}
           {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
