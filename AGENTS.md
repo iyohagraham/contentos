@@ -15,11 +15,19 @@
 
 ## Project Overview
 
-**ContentOS** is an AI-powered, provider-agnostic **content operating system** for faceless / brand video channels. It takes a niche or a single brief and runs the full content lifecycle: research → knowledge extraction → strategy → content planning → asset generation (image/video/voice) → video assembly → publishing → analytics → learning.
+**ContentOS is an AI Media Operating System** — not a video generator. It plans, creates, manages, publishes, analyzes, and continuously improves media production across every content platform. It is **modular, provider-agnostic, and scalable**: the platform itself is the orchestration layer.
+
+> **v2.0 pivot (2026-06-24):** ContentOS is now an **AI Media OS** built from 21 single-responsibility **engines** that communicate ONLY through structured JSON **contracts**. **OpenMontage is fully removed** — the platform owns every layer (composition = HyperFrames, rendering = FFmpeg, owned in-house). See **System Architecture — The 21 Engines** below.
+
+**Core design principles (non-negotiable):**
+- Everything is modular; every engine has ONE responsibility.
+- Engines communicate ONLY through structured JSON contracts (`api/_contracts/`).
+- Every provider is replaceable; no business logic depends on one AI provider.
+- No workflow is hardcoded. Every project is resumable. Every engine is independently upgradeable.
 
 It operates in two modes:
 - **Mode A — One-off:** make a single video / image / post / script / campaign without a long-term strategy.
-- **Mode B — Autonomous Brand:** define niche/audience/goals/products, and ContentOS plans and produces content continuously with minimal human input (Creator → Project → Brand autonomy ladder).
+- **Mode B — Autonomous Brand:** define niche/audience/goals/products, and ContentOS plans and produces content continuously with minimal human input (Creator → Project → Brand → **Franchise** autonomy ladder).
 
 ## Business Goal
 
@@ -31,20 +39,56 @@ Let one operator run many content channels at near-zero marginal cost by automat
 
 ```
 React 18 + Vite SPA (src/)                Vercel Serverless Functions (api/*.js, plain ESM)
-  views/ + lib/ (store, router, auth)  ──▶  generation, agents, knowledge, skills, media, publishing
-        │                                          │
+  views/ + lib/ (store, router, auth)  ──▶  ENGINES (api/_engines/*) + agents + endpoints
+        │                                          │   speak JSON CONTRACTS (api/_contracts/*)
         │  localStorage  ⇄  Supabase               ▼
         └────────────────────────────────▶  Supabase (Postgres + pgvector + RLS + Auth)
                                                    │
-   Cron (vercel.json) ──▶ Job Queue (jobs table) ──▶ Agents ──▶ Providers via Model Router
+   Cron (vercel.json) ──▶ Job Queue (jobs table) ──▶ Agents ──▶ Providers via Routers (Media/Voice/Music)
 ```
 
+**Engine contract (`api/_engines/_base.js`):** every engine is `defineEngine({ id, responsibility, status, inputs, outputs, run(input, ctx) })`. `run` takes a structured JSON contract in, returns a structured JSON contract out, and is injected services via `ctx` (db, workspaceId, routers). Engines NEVER import each other's internals — they exchange **contracts** (`api/_contracts/index.js`, 15 documented contracts + `validateContract()`). Stubs return `{ _stub: true, ... }`. The full catalog + pipeline order + live/stub stats live in `api/_engines/registry.js` and are introspectable at **`GET /api/engines`** (`?run=<id>` invokes one engine).
+
 **Request path for media (must always hold):**
-`Media Engine → Model Router → Provider Adapter → Provider`. The Media Engine NEVER calls a provider directly.
+`Engine → Media Router → Provider Adapter → Provider`. No engine calls a provider directly. **Runware is the primary media provider.**
 
 **Agent communication:** agents never import each other. They coordinate through the `jobs` table and write audit rows to `agent_runs`. Cron (`/api/cron/run-agents`, every 5 min) claims pending jobs atomically and dispatches.
 
 **RAG + Skills:** every agent generation retrieves Knowledge (pgvector) via `buildRAGContext` AND learned Skills via `buildSkillContext` (both injected into the system prompt by `api/agents/_base.js`). Both degrade to empty string on failure — they never block an agent.
+
+## System Architecture — The 21 Engines
+
+Single-responsibility engines, communicating via JSON contracts. **11 live / 10 stub** (stub = contract + interface defined, implementation pending — runnable, returns contract-shaped `_stub` JSON). The pipeline order IS the production pipeline.
+
+| # | Engine | Responsibility | Status | Implementation |
+|---|---|---|---|---|
+| 1 | **Knowledge** | Research/ingest/verify → structured knowledge (RAG) | live | `api/knowledge/*` |
+| 2 | **Creative Director** | Decide what the audience should FEEL (tone/energy/pacing) | stub | `api/_engines/creative-director.js` |
+| 3 | **Strategy** | Brand-level strategy: seasons, calendars, schedules, growth | live | `api/agents/strategy.js` + `api/planning/*` |
+| 4 | **Style** | Reusable style profiles (fonts/colors/camera/rhythm/captions) | stub | `api/_engines/style.js` |
+| 5 | **Universe** | World bible: characters/locations/props/rules/lore/timelines | stub | `api/_engines/universe.js` |
+| 6 | **Character** | Character consistency: faces/voices/expressions/outfits/poses | stub | `api/_engines/character.js` |
+| 7 | **Brand** | Business identity: logo/colors/fonts/voice/tone/CTA rules | stub | `api/_engines/brand.js` |
+| 8 | **Story** | Narrative: structure/hooks/retention/arcs/series/episodes | live | `api/agents/writing.js` + `generate-script.js` |
+| 9 | **Storyboard** | Visual plan: shots/camera/lighting/mood/props/transitions | stub | `api/_engines/storyboard.js` |
+| 10 | **Continuity** | Guard consistency; emit a continuity report before production | stub | `api/_engines/continuity.js` |
+| 11 | **Scene Planner** | Storyboard → production scenes (structured JSON) | stub | `api/_engines/scene-planner.js` |
+| 12 | **Media Router** | Pick the best provider per media request (Runware primary) | live | `src/lib/router/*` + `api/media/engine.js` |
+| 13 | **Asset Manager** | Store + version assets + metadata | live | `api/_blob.js` + `api/knowledge/assets.js` |
+| 14 | **Voice** | Narration/character voices/cloning/dubbing (Qwen / OmniVoice) | live | `api/_providers/voice.js` |
+| 15 | **Music** | Music/ambience/SFX/theme/background (replaceable provider) | stub | `api/_engines/music.js` |
+| 16 | **Composition (HyperFrames)** | Timeline/animation/captions/motion/transitions | live | `api/_engines/composition/hyperframes.js` |
+| 17 | **Rendering (FFmpeg)** | Encode/compress/export all formats + watermark + audio mix | live | `api/_render/*` |
+| 18 | **Publishing** | Schedule + publish to YT/IG/TikTok/FB/LinkedIn/X | live | `api/agents/publishing.js` + `api/postiz/*` |
+| 19 | **Analytics** | CTR/watch-time/retention/revenue/views/shares/subs | live | `api/analytics/*` |
+| 20 | **Learning** | Feed winning patterns back into strategy/story/style/direction | live | `api/agents/optimization.js` + router auto-learn |
+| 21 | **Franchise** | Universe→Brand→Franchise→Season→Series→Episode→Storyboard→Scene→Assets | stub | `api/_engines/franchise.js` |
+
+**Production pipeline (order):**
+`Knowledge → Creative Direction → Strategy → Style → Universe → Characters → Story → Storyboard → Continuity → Scene Planning → Media Router → Voice → Music → Composition (HyperFrames) → Rendering (FFmpeg) → Publishing → Analytics → Learning`
+(Brand, Asset Manager, Franchise are cross-cutting/structural.)
+
+**Provider policy:** Runware = primary media. Qwen-3-TTS + OmniVoice Studio = primary voice. HyperFrames = composition. FFmpeg = rendering. **Every provider stays replaceable**; routers make the selection.
 
 ## Technology Stack
 
@@ -84,10 +128,18 @@ api/                       Vercel serverless functions (plain ESM)
     video.js               Wan via fal (imageToVideo/motionTest)
     voice.js               Qwen-3-TTS (fal) + Kokoro (local)
     router-adapters.js     SERVER bootstrap: injects router adapters + DB logger (ensureRouterReady)
+  _engines/                ENGINE SPINE (v2.0) — defineEngine base + registry + per-engine modules
+    _base.js               defineEngine() universal engine interface + stubOutput()
+    registry.js            catalog of all 21 engines (id/responsibility/status/contracts/impl)
+    composition/hyperframes.js   Composition Engine (#16) — replaces the OpenMontage bridge
+    {creative-director,style,universe,character,brand,storyboard,continuity,
+     scene-planner,music,franchise}.js   the 10 new-engine stubs (contract-shaped)
+  _contracts/
+    index.js               15 documented JSON contracts engines exchange + validateContract()
   _render/
-    ffmpeg.js              Render backbone (renderTimeline, generateSRT, generateThumbnail)
+    ffmpeg.js              Rendering Engine backbone (renderTimeline, generateSRT, generateThumbnail)
     formats.js             9:16 / 16:9 / 1:1 presets + exportFormat()
-    composition.js         Timeline manifest builder (OpenMontage-compatible)
+    composition.js         COMPOSITION_MANIFEST builder
     index.js               RenderProvider selector (ffmpeg default; openmontage stub)
   agents/                  9 agents: strategy, writing, research, planning, analytics,
                            optimization, media, publishing, notification (+ _base.js, run.js)
@@ -192,7 +244,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 
 ### Planned / Not Started
 - ✅ Monetization agent now built — the planned agent set is complete.
-- OpenMontage worker render path (heavy compositions via Remotion/HyperFrames) behind the existing RenderProvider interface
+- Implement the 10 stub engines (Creative Director, Style, Universe, Character, Brand, Storyboard, Continuity, Scene Planner, Music, Franchise) — interfaces + contracts already defined in `api/_engines/` + `api/_contracts/`
 - ✅ Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning now implemented
 - Real OpenAI/DALL·E image adapter (currently a stub that falls through to Runware)
 
@@ -271,13 +323,16 @@ CRON_MAX_JOBS=                # default 5
 
 ## Current Roadmap
 
-Priority order (from the execution directives):
-1. ✅ Media Engine (Runware + FFmpeg)
-2. 🟡 Content Intelligence — exists, but AI-synthesized; deepen with real ingestion
-3. ✅ Knowledge Base
-4. ✅ Skill System
-5. **▶ Channel Intelligence — YouTube real ingestion ✅ (keyless RSS); clone/adapt → new niche ✅ (actionable in UI); IG/TikTok real source still needed**
-6. ⏳ Autonomous Content Operations (monitoring, notification agent, 30-day run)
+**v2.0 (AI Media OS) — current focus:** the architecture pivot is in. Engine + contract spine is live; OpenMontage is removed. The work now is **implementing the 10 stub engines** behind their already-defined contracts (`api/_engines/registry.js` shows live/stub), in pipeline order leverage:
+1. **▶ Storyboard Engine** — story → shot list (visual plan before production)
+2. **Scene Planner** — storyboard → production scenes (structured JSON)
+3. **Style Engine** — reusable style profiles every project references
+4. Universe + Character + Continuity (recurring-character channels)
+5. Creative Director + Brand
+6. Music Engine (wire a replaceable music provider)
+7. Franchise Engine (full Universe→…→Assets hierarchy)
+
+**v1 foundation (done, mapped onto engines):** Media Router (Runware+FFmpeg) ✅, Knowledge ✅, Skills ✅, Channel Intelligence ✅, Phase 8 Analytics ✅, 10 agents ✅, auto-learning router ✅, Autonomous Brand Mode monitoring ✅ (remaining: 30-day unattended run + external alert delivery).
 
 ## Critical Decisions
 
@@ -285,7 +340,8 @@ Priority order (from the execution directives):
 - **Plain JS, not TS** — Vercel functions run Node directly, no transpile.
 - **Runware primary for images** — project override of the global FLUX-via-fal default; ~$0.0006/image.
 - **Model Router purity** — `src/lib/router/*` has zero secrets / zero `api/` imports; adapters + DB logger injected server-side via `api/_providers/router-adapters.js`. Keep it pure so the frontend bundle stays clean.
-- **OpenMontage = composition abstraction, FFmpeg = renderer** — OpenMontage is a local Python pipeline that can't run in Vercel serverless; the cloud path is FFmpeg, with OpenMontage reserved as a future RenderProvider behind the same manifest.
+- **OpenMontage REMOVED (v2.0)** — the platform owns every layer itself. **HyperFrames is THE Composition Engine** (`api/_engines/composition/hyperframes.js`); **FFmpeg is THE Rendering Engine** (`api/_render/*`). Nothing depends on OpenMontage. A future GPU/worker renderer can slot in behind the same `composition_manifest` contract — every provider stays replaceable.
+- **Engines + JSON contracts** — the platform is 21 single-responsibility engines (`api/_engines/registry.js`) that exchange documented JSON contracts (`api/_contracts/`). No engine imports another; no business logic depends on one provider.
 - **Kimi primary, `temperature:1` mandatory** — required by `kimi-k2.7-code-highspeed`.
 - **config-driven model registry** — no model IDs hardcoded in business logic.
 
@@ -306,6 +362,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — ContentOS v2.0 PIVOT: AI Media OS, OpenMontage removed, 21-engine spine
+- **What:** Re-architected ContentOS from "AI video generator" to **AI Media Operating System**. (1) **Removed OpenMontage entirely** — deleted `openmontage-bridge.js`; new Composition Engine `api/_engines/composition/hyperframes.js` (HyperFrames is THE composition framework, fixed its broken GSAP CDN URL); `generate-composition.js` repointed; `_render/index.js` dropped the `renderWithOpenMontage` stub (FFmpeg is the sole renderer); de-OpenMontaged `_render/composition.js` comments; `voice.js` Kokoro path now `KOKORO_TTS_SCRIPT`-configurable (defaults `~/.kokoro`, no OpenMontage tree); fixed `server.js` broken `api/social.js` import. (2) **Engine + contract spine:** `api/_engines/_base.js` (`defineEngine` universal interface), `api/_contracts/index.js` (15 documented JSON contracts + `validateContract`), `api/_engines/registry.js` (all 21 engines, pipeline order, 11 live/10 stub), 10 new-engine stubs, `api/engines.js` (GET introspection + `?run=<id>`).
+- **Why:** Per the v2.0 vision directive — own every layer, modular single-responsibility engines, JSON contracts, every provider replaceable, no hardcoded workflows. Stop feature-adding; refactor into this architecture.
+- **Impact:** 21 engines load (11 live by mapping existing impls, 10 contract stubs). Composition Engine emits a valid `composition_manifest` + clean HyperFrames HTML (zero OpenMontage). `node --check` all green; `vite build` green. Chosen scope: **contracts + stubs first** (per operator) — implement the 10 stubs fully in follow-up passes. Next: build out Storyboard / Scene Planner / Style first (highest leverage), then the rest.
 
 ### 2026-06-24 — React.lazy code-splitting
 - **What:** Converted all 16 view imports in `App.jsx` from static to `React.lazy(() => import(...))` and wrapped the view-dispatch in `<Suspense fallback={<ViewFallback/>}>` (a small spinner). Each view + the shared `ui.jsx` now emit separate chunks.

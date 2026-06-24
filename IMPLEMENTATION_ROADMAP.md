@@ -1,6 +1,8 @@
 # ContentOS — Implementation Roadmap
-**Authority:** MASTER_VISION.md supersedes this document on direction. This document tracks build progress.
-**Updated:** 2026-06-23
+> ⚠️ **STALE — superseded by AGENTS.md (the canonical source of truth).** As of the **v2.0 pivot** ContentOS is an **AI Media Operating System** (21 engines + JSON contracts; OpenMontage removed). This file is kept only for historical phase tracking. For current architecture, engines, status, and roadmap, read **AGENTS.md**.
+
+**Authority:** AGENTS.md supersedes this document. This document tracks historical build progress.
+**Updated:** 2026-06-23 (frozen)
 
 ---
 
@@ -220,7 +222,7 @@ Phase 0 (Bug-fixes + Auth scaffold) is COMPLETE. Phase 1 (Foundation Infrastruct
 | `workspace_id: 'default'` hardcoded in publish handler | Medium | Fix when Supabase goes live |
 | KIMI_API_KEY in git history | HIGH | Rotate at console.moonshot.ai |
 | Dead social connectors (tiktok.js, instagram.js, etc.) | Low | Remove in P1.5 refactor |
-| openmontage-bridge.js broken GSAP CDN URL | Medium | Fix when video export needed |
+| ~~openmontage-bridge.js broken GSAP CDN URL~~ | ✅ Resolved | OpenMontage removed in v2.0; bridge deleted → replaced by the Composition Engine `api/_engines/composition/hyperframes.js` (CDN URL fixed). |
 | fal.js client-side key exposure | High | Fixed in P1.3 (server routes) |
 | App.jsx 2200+ lines | Medium | Fixed in P1.5 refactor |
 
