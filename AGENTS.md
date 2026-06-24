@@ -179,7 +179,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Content Planning:** calendar + campaign generation with 5-factor opportunity scoring
 - **Media Engine (Priority 1):** Runware assets → voice → composition manifest → **FFmpeg render** → multi-format export (9:16/16:9/1:1); live-tested end-to-end
 - **Model Router:** provider/model-agnostic routing (registry/scoring/rules), candidate fallback, decision logging; 10/10 selection tests pass
-- **9 Agents:** strategy, writing, research, planning, analytics, optimization, media, publishing, notification
+- **10 Agents:** strategy, writing, research, planning, analytics, optimization, media, publishing, notification, **monetization** (the full planned agent set is now complete)
 - **Publishing:** Postiz multi-channel (single + batch)
 - **Brand Monitoring (Phase 10):** Notification Agent (pure-DB scan for failures + approval-gate items, de-duped) + `/api/monitor/status` aggregation + `MonitorView` dashboard (job queue, agent activity, content pipeline, routing mix, alerts w/ ack/resolve, insights)
 - **Analytics (Phase 8):** `api/analytics/{track,aggregate,insights,revenue}.js` — per-post performance ingest (idempotent upsert), cross-platform aggregation, AI-powered learning insights (grounded in real metrics → `learning_insights`), revenue attribution (UTM-match → video). `AnalyticsView` upgraded to merge Postiz + new DB data + revenue panel + insight generation
@@ -191,9 +191,9 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI ✅, Notification Agent ✅, monitoring dashboard ✅. Remaining: a 30-day unattended test run, and external alert delivery (email/push) — alerts are currently in-app only.
 
 ### Planned / Not Started
-- Remaining agent: **Monetization** (Notification ✅ built; `analytics.js` ✅ serves as the Analysis agent) — in progress
+- ✅ Monetization agent now built — the planned agent set is complete.
 - OpenMontage worker render path (heavy compositions via Remotion/HyperFrames) behind the existing RenderProvider interface
-- Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning not implemented
+- Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning not implemented — in progress
 - Real OpenAI/DALL·E image adapter (currently a stub that falls through to Runware)
 
 ---
@@ -306,6 +306,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Monetization Agent (10th agent — planned set complete)
+- **What:** Added `api/agents/monetization.js` (10th agent) + registered in `run.js`. Uses workspace products + revenue_events + post_analytics to build a revenue-by-video leaderboard and funnel-health snapshot (total/attributed revenue, attribution rate, revenue-per-view), then asks the AI for evidence-grounded recommendations (pricing/CTA/lead-magnet/product-fit/funnel/bundling), pricing suggestions, and which top content should get a direct product CTA. Two modes: `focus=strategy` (build the funnel) and `focus=optimize` (tighten existing). Grounded via base agent RAG+skills.
+- **Why:** Monetization was the only genuinely-missing planned agent. The autonomous loop now spans the full content→revenue lifecycle, and the Optimization Agent can eventually consume monetization recommendations too.
+- **Impact:** The planned agent set is **complete (10/10)**. `node --check` + `vite build` green. No schema change. AgentsView will surface it via the existing `run.js` registry automatically.
 
 ### 2026-06-24 — Phase 8 Analytics (track / aggregate / insights / revenue)
 - **What:** Added `api/analytics/{track,aggregate,insights,revenue}.js`. `track.js` ingests per-post performance (idempotent `upsert` on `video_post_id,snapshot_date`, auto-computes engagement_rate + performance_score, optional revenue_event side-write); `aggregate.js` does cross-platform aggregation over `post_analytics`+`revenue_events`+`platform_snapshots` (totals, byPlatform, byDate, topPosts, followerTrend); `insights.js` runs the analytics base agent to surface evidence-grounded optimization insights → persists `learning_insights`; `revenue.js` records + reports revenue events with UTM-match attribution. `AnalyticsView` upgraded to merge Postiz data + the new DB aggregation + a revenue attribution panel + a "Generate insights" button. All endpoints `coerceWorkspaceId`.
