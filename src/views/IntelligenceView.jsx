@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
   Zap, Youtube, Link, Loader2, AlertCircle, ChevronDown, ChevronUp,
   TrendingUp, Hash, Star, Copy, ArrowUpRight, BookOpen, Layers,
-  Target, Shuffle, Globe
+  Target, Shuffle, Globe, Wand2
 } from 'lucide-react'
 
 const DNA_LABELS = {
@@ -30,6 +30,10 @@ export default function IntelligenceView({ workspaceId }) {
   const [applyTopic, setApplyTopic] = useState('')
   const [applyResult, setApplyResult] = useState(null)
   const [applying, setApplying] = useState(false)
+  const [adaptVersion, setAdaptVersion] = useState(null)
+  const [adaptNiche, setAdaptNiche] = useState('')
+  const [adaptResult, setAdaptResult] = useState(null)
+  const [adapting, setAdapting] = useState(false)
 
   async function analyze() {
     if (!channelUrl.trim()) return
@@ -68,6 +72,29 @@ export default function IntelligenceView({ workspaceId }) {
 
   function copyText(text) {
     navigator.clipboard.writeText(text).catch(() => {})
+  }
+
+  async function adaptToNiche(version) {
+    if (!adaptNiche.trim()) return
+    setAdapting(true)
+    try {
+      const res = await fetch('/api/intelligence/adapt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          dna: result.dna,
+          target_niche: adaptNiche,
+          version_type: version.type
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Adaptation failed')
+      setAdaptResult(data)
+    } catch (err) {
+      setAdaptResult({ error: err.message })
+    }
+    setAdapting(false)
   }
 
   return (
@@ -236,6 +263,69 @@ export default function IntelligenceView({ workspaceId }) {
                         ))}
                       </div>
                     )}
+
+                    {/* Adapt to my niche — makes the "clone/adapt → new niche" loop actionable */}
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <button onClick={() => { setAdaptVersion(adaptVersion?.type === v.type ? null : v); setAdaptResult(null) }}
+                        className="text-xs flex items-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-colors">
+                        <Wand2 className="w-3.5 h-3.5" />
+                        {adaptVersion?.type === v.type ? 'Cancel' : 'Adapt to my niche'}
+                      </button>
+
+                      {adaptVersion?.type === v.type && (
+                        <div className="mt-2 space-y-2">
+                          <div className="flex gap-2">
+                            <input value={adaptNiche} onChange={e => setAdaptNiche(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && adaptToNiche(v)}
+                              placeholder={v.type === 'niche_transfer' ? 'e.g. personal finance for freelancers' : v.type === 'platform_transfer' ? 'target platform' : 'same niche — leave blank or refine'}
+                              className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                            <button onClick={() => adaptToNiche(v)} disabled={adapting || !adaptNiche.trim()}
+                              className="bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-4 py-2 rounded text-sm transition-colors flex items-center gap-1.5">
+                              {adapting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                              Generate
+                            </button>
+                          </div>
+
+                          {adaptResult?.error && (
+                            <p className="text-red-400 text-xs flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />{adaptResult.error}</p>
+                          )}
+
+                          {adaptResult?.adapted_strategy && (
+                            <div className="bg-slate-950/60 rounded-lg p-3 space-y-1.5 border border-slate-800">
+                              <p className="text-xs text-slate-500">Adapted angle: <span className="text-slate-200">{adaptResult.adapted_strategy.niche_angle}</span></p>
+                              {adaptResult.adapted_strategy.audience && <p className="text-xs text-slate-500">Audience: <span className="text-slate-200">{adaptResult.adapted_strategy.audience}</span></p>}
+                              {adaptResult.adapted_strategy.content_pillars?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {adaptResult.adapted_strategy.content_pillars.map((p, k) => (
+                                    <span key={k} className="text-xs bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 rounded px-2 py-0.5">{p}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {adaptResult.adapted_strategy.title_formula && <p className="text-xs text-slate-500 mt-1">Title: <span className="text-slate-300 font-mono">{adaptResult.adapted_strategy.title_formula}</span> <button onClick={() => copyText(adaptResult.adapted_strategy.title_formula)} className="text-slate-600 hover:text-white"><Copy className="w-3 h-3 inline" /></button></p>}
+                              {adaptResult.adapted_strategy.hook_formula && <p className="text-xs text-slate-500">Hook: <span className="text-slate-300 font-mono">{adaptResult.adapted_strategy.hook_formula}</span></p>}
+                              {adaptResult.adapted_strategy.cta_formula && <p className="text-xs text-slate-500">CTA: <span className="text-slate-300 font-mono">{adaptResult.adapted_strategy.cta_formula}</span></p>}
+                            </div>
+                          )}
+
+                          {adaptResult?.posts?.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-slate-500 font-semibold pt-1">Starter posts ({adaptResult.posts.length}):</p>
+                              {adaptResult.posts.map((p, k) => (
+                                <div key={k} className="bg-slate-950 rounded p-2.5 border border-slate-800">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="text-sm font-medium flex-1">{p.title}</p>
+                                    <button onClick={() => copyText(`${p.title}\n\nHook: ${p.hook || ''}\nCTA: ${p.cta || ''}`)} className="text-slate-600 hover:text-white flex-shrink-0"><Copy className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                  {p.hook && <p className="text-xs text-slate-400 mt-1">Hook: {p.hook}</p>}
+                                  {p.cta && <p className="text-xs text-slate-400">CTA: {p.cta}</p>}
+                                  {p.why_it_works && <p className="text-xs text-slate-500 mt-1 italic">why: {p.why_it_works}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

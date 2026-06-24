@@ -179,7 +179,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Auth scaffold:** dormant until `VITE_SUPABASE_*` set
 
 ### In Progress
-- **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ (keyless RSS). IG/TikTok ✅ via pluggable scraper provider (`SOCIAL_SCRAPER_URL`) + operator paste (`samples` in analyze body) + best-effort TikTok scrape. Remaining: surface "clone/adapt/improve strategy → new niche" in the UI; optionally ship a default IG/TikTok scraper integration.
+- **Channel Intelligence (Priority 5):** YouTube real ingestion ✅ (keyless RSS). IG/TikTok ✅ via pluggable scraper provider (`SOCIAL_SCRAPER_URL`) + operator paste (`samples` in analyze body) + best-effort TikTok scrape. **"Clone/adapt/improve → new niche" now actionable in the UI ✅** — Version Builder cards have an "Adapt to my niche" panel that calls `POST /api/intelligence/adapt` (channel DNA + target niche → adapted strategy + starter posts). Remaining: optionally ship a default IG/TikTok scraper integration.
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI ✅, Notification Agent ✅, monitoring dashboard ✅. Remaining: a 30-day unattended test run, and external alert delivery (email/push) — alerts are currently in-app only.
 
 ### Planned / Not Started
@@ -268,7 +268,7 @@ Priority order (from the execution directives):
 2. 🟡 Content Intelligence — exists, but AI-synthesized; deepen with real ingestion
 3. ✅ Knowledge Base
 4. ✅ Skill System
-5. **▶ Channel Intelligence — YouTube real ingestion ✅ (keyless RSS); IG/TikTok real source still needed**
+5. **▶ Channel Intelligence — YouTube real ingestion ✅ (keyless RSS); clone/adapt → new niche ✅ (actionable in UI); IG/TikTok real source still needed**
 6. ⏳ Autonomous Content Operations (monitoring, notification agent, 30-day run)
 
 ## Critical Decisions
@@ -288,7 +288,7 @@ Priority order (from the execution directives):
 - localStorage mode is the default and fully functional for demoing the UI without any keys.
 
 ## Next Recommended Tasks
-1. **Priority 5 — real Channel Intelligence ingestion**: fetch real channel data (YouTube Data API / oEmbed / yt-dlp metadata / public scrape) → store `channel_content_samples` → run DNA extraction on REAL videos, not just the URL. Then "clone/adapt/improve strategy → new niche". *(YouTube keyless RSS ✅; remaining: surface clone/adapt/improve → new niche in the UI; optional default IG/TikTok scraper.)*
+1. **Priority 5 — real Channel Intelligence ingestion**: fetch real channel data (YouTube Data API / oEmbed / yt-dlp metadata / public scrape) → store `channel_content_samples` → run DNA extraction on REAL videos, not just the URL. Then "clone/adapt/improve strategy → new niche". *(YouTube keyless RSS ✅; clone/adapt → new niche ✅ actionable via `POST /api/intelligence/adapt` + Version Builder panel; optional default IG/TikTok scraper remains.)*
 2. ✅ **DONE** — `coerceWorkspaceId()` applied across the older endpoints (knowledge/research/intelligence/planning). Optional follow-up: `useWorkspace` create-or-get a real workspace row on login.
 3. Deploy: provision Supabase, apply schema, push env, `vercel --prod`, smoke-test. *(Blocked: needs your Supabase project + secrets — rotate the exposed KIMI key first, then push the 21 unpushed commits.)*
 4. Delete dead code (social connectors, `_kimi.js`, `fal.js`); split `App.jsx`.
@@ -298,6 +298,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Channel Intelligence "adapt → new niche" (Priority 5, actionable)
+- **What:** Added `api/intelligence/adapt.js` (POST — takes `dna` + `target_niche` + `version_type` → `textGenerateJSON` produces an adapted content blueprint: pillars, title/hook/cta formulas, + N starter posts; grounded via `buildRAGContext`; `coerceWorkspaceId` on wsId; 503 on no text-AI-provider). Wired `src/views/IntelligenceView.jsx` Version Builder cards with an "Adapt to my niche" collapsible panel (Wand2 icon) that calls it and renders the adapted strategy + post list with copy buttons. Handles `improved`/`niche_transfer`/`platform_transfer` framings.
+- **Why:** P5's remaining gap was that the Version Builder only *described* clone/adapt/improve — it was inert. This closes the loop: an operator analyzes a proven channel, picks a target niche, and gets a ready-to-execute content plan distilled from the source DNA. Endpoint takes `dna` directly (versions aren't returned with ids from `analyze`), so it's stateless and works whether or not the analysis is persisted.
+- **Impact:** Channel Intelligence is now an actionable research→strategy tool, not just a viewer. `node --check` + `vite build` green. No schema change. Frontend still uses only existing router/postiz patterns.
 
 ### 2026-06-24 — Dead-code removal (social manager stack + fal.js + _kimi.js)
 - **What:** Deleted 9 files: `api/social.js`, `src/lib/social/{manager,scheduler,tiktok,instagram,youtube,facebook}.js`, `src/lib/fal.js`, `api/_kimi.js`. Kept `src/lib/social/postiz.js` (7 importers) + `api/social/[...action].js` (live Postiz catch-all).
