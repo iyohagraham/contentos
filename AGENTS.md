@@ -4,6 +4,11 @@
 >
 > **Maintenance rule:** whenever you make a significant code change or architectural decision, update the relevant sections here AND append an entry to **Agent Memory**. Treat AGENTS.md as part of "done."
 >
+> **Working mode:** **autonomous.** Continue the next highest-priority unfinished task without asking permission for low-stakes local actions — committing work, deleting dead code, splitting files, running builds/checks, continuing dev tasks. Default to acting. Do NOT, however:
+> - **push to `origin/main`** without an explicit go-ahead — a live `KIMI_API_KEY` sits in git history; rotate it at console.moonshot.ai first (otherwise the push leaks it publicly). Local commits are fine.
+> - make **paid generation / external-billable calls** (Runware/fal/OpenAI/Kimi/scraper) without confirmation.
+> - change **architecture** or **DB schema** without first recording the decision here.
+>
 > **Last updated:** 2026-06-24
 
 ---
@@ -178,7 +183,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 - **Autonomous Brand Mode (Phase 10):** operating-mode UI ✅, Notification Agent ✅, monitoring dashboard ✅. Remaining: a 30-day unattended test run, and external alert delivery (email/push) — alerts are currently in-app only.
 
 ### Planned / Not Started
-- Remaining agents: Analysis, Monetization, Notification
+- Remaining agent: **Monetization** (Notification ✅ built; `analytics.js` ✅ serves as the Analysis agent)
 - OpenMontage worker render path (heavy compositions via Remotion/HyperFrames) behind the existing RenderProvider interface
 - Auto-learning routing (read `model_routing_log` to adjust scores) — table exists, learning not implemented
 - Real OpenAI/DALL·E image adapter (currently a stub that falls through to Runware)
@@ -189,7 +194,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 
 | Item | Severity | Notes |
 |---|---|---|
-| `workspace_id: 'default'` sentinel vs UUID columns | Medium | `coerceWorkspaceId()` guards the skill endpoints; knowledge/research/intelligence/planning still pass raw `workspace_id` — apply the same guard OR make `useWorkspace` create a real workspace row on login |
+| `workspace_id: 'default'` sentinel vs UUID columns | ✅ Resolved | `coerceWorkspaceId()` now guards ALL server endpoints (skills + knowledge/research/intelligence/planning). 'default' → `NULL` (globally-scoped) on every UUID column + match RPC (`p_workspace_id IS NULL OR …`). Verified: all touched `workspace_id` cols are nullable, so null inserts cleanly. Optional follow-up: `useWorkspace` create-or-get a real workspace row on login so writes are properly owned once Supabase+Auth go live. |
 | Dead social connectors | Low | `src/lib/social/{tiktok,instagram,youtube,facebook,manager,scheduler}.js` no longer imported — safe to delete |
 | Legacy `api/_kimi.js` | Low | superseded by `_providers/text.js` |
 | Client-side `src/lib/fal.js` | Low | superseded by server routes; key-exposure risk if reused |
@@ -283,9 +288,9 @@ Priority order (from the execution directives):
 - localStorage mode is the default and fully functional for demoing the UI without any keys.
 
 ## Next Recommended Tasks
-1. **Priority 5 — real Channel Intelligence ingestion**: fetch real channel data (YouTube Data API / oEmbed / yt-dlp metadata / public scrape) → store `channel_content_samples` → run DNA extraction on REAL videos, not just the URL. Then "clone/adapt/improve strategy → new niche".
-2. Apply `coerceWorkspaceId()` across the older endpoints (knowledge/research/intelligence/planning) OR make `useWorkspace` create-or-get a real workspace row on login.
-3. Deploy: provision Supabase, apply schema, push env, `vercel --prod`, smoke-test.
+1. **Priority 5 — real Channel Intelligence ingestion**: fetch real channel data (YouTube Data API / oEmbed / yt-dlp metadata / public scrape) → store `channel_content_samples` → run DNA extraction on REAL videos, not just the URL. Then "clone/adapt/improve strategy → new niche". *(YouTube keyless RSS ✅; remaining: surface clone/adapt/improve → new niche in the UI; optional default IG/TikTok scraper.)*
+2. ✅ **DONE** — `coerceWorkspaceId()` applied across the older endpoints (knowledge/research/intelligence/planning). Optional follow-up: `useWorkspace` create-or-get a real workspace row on login.
+3. Deploy: provision Supabase, apply schema, push env, `vercel --prod`, smoke-test. *(Blocked: needs your Supabase project + secrets — rotate the exposed KIMI key first, then push the 21 unpushed commits.)*
 4. Delete dead code (social connectors, `_kimi.js`, `fal.js`); split `App.jsx`.
 
 ---
@@ -293,6 +298,11 @@ Priority order (from the execution directives):
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — coerceWorkspaceId rolled out across all older endpoints
+- **What:** Applied `coerceWorkspaceId()` to the 10 remaining endpoints that passed the raw `'default'` sentinel into UUID columns: `knowledge/{ingest,search,rag,assets}`, `research/{scan,results}`, `intelligence/{analyze,playbooks}`, `planning/{calendar,campaign}`. Each now computes `wsId = coerceWorkspaceId(workspace_id)` after the presence check and uses it for every DB column write, `.eq()` filter, match-RPC `p_workspace_id`, and `enqueue()`. Imported `coerceWorkspaceId` from `_db.js` in each.
+- **Why:** These would throw `invalid input syntax for type uuid` the moment Supabase went live with a pre-auth/'default' workspace (the documented next major step). The match RPCs are already null-tolerant (`p_workspace_id IS NULL OR ka.workspace_id = p_workspace_id`), and all touched `workspace_id` columns are **nullable**, so `coerce→null` inserts/filters cleanly with no behavior change in localStorage mode (db is null there) and no tradeoff for real UUID workspaces.
+- **Impact:** The Medium tech-debt item is resolved — the sentinel crash is eliminately across the whole server surface (skills were already guarded). `node --check` green on all 10 files; grep confirms no raw sentinel reaches a DB write. Optional complementary work remains: `useWorkspace` create-or-get a real workspace row on login so writes are owner-scoped under auth.
 
 ### 2026-06-24 — Brand Monitoring (Phase 10)
 - **What:** `api/agents/notification.js` (Notification Agent — pure DB scan, no AI keys: detects failed jobs/agent_runs/content + review-gate approval items, de-dupes via `dedupe_key`, writes `notifications`), `api/monitor/{status,notifications}.js` (health aggregation + ack/resolve), `notifications` table, `src/views/MonitorView.jsx` + nav. Registered notification in `run.js` (cron `agent:notification` now resolves).

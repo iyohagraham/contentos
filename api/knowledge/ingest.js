@@ -10,7 +10,7 @@
  *   4. Extract structured knowledge objects (AI)
  *   5. Store in knowledge_assets + knowledge_chunks + knowledge_objects
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { embed, embedBatch, hasEmbedProvider } from '../_providers/embed.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { chunkText, chunkTranscript, estimateTokens } from './_chunker.js'
@@ -23,10 +23,11 @@ export default async function handler(req, res) {
   if (!source_url && !text) return res.status(400).json({ error: 'source_url or text required' })
 
   const db = getServerSupabase()
+  const wsId = coerceWorkspaceId(workspace_id)
 
   try {
     // Step 1: Create asset record
-    let assetData = { workspace_id, title: title || source_url || 'Untitled', asset_type, source_url, categories, ingestion_status: 'processing' }
+    let assetData = { workspace_id: wsId, title: title || source_url || 'Untitled', asset_type, source_url, categories, ingestion_status: 'processing' }
     let content = text || ''
 
     if (source_url && !text) {
@@ -73,7 +74,7 @@ export default async function handler(req, res) {
     // Step 5: Extract knowledge objects (AI)
     let objects = []
     if (content.length > 200) {
-      objects = await extractKnowledgeObjects(content.slice(0, 8000), { workspace_id, asset_id: asset.id, db })
+      objects = await extractKnowledgeObjects(content.slice(0, 8000), { workspace_id: wsId, asset_id: asset.id, db })
     }
 
     // Step 6: Update asset status

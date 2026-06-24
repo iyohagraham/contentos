@@ -5,7 +5,7 @@
  *
  * Body: { workspace_id, horizon_days?, campaign_id? }
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { buildRAGContext } from '../knowledge/rag.js'
 
@@ -18,21 +18,22 @@ export default async function handler(req, res) {
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' })
 
   const db = getServerSupabase()
+  const wsId = coerceWorkspaceId(workspace_id)
 
   // Load workspace strategy
   let strategy = null
   let config = null
   if (db) {
     const [sRes, cRes] = await Promise.all([
-      db.from('strategies').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false }).limit(1),
-      db.from('workspace_config').select('*').eq('workspace_id', workspace_id).single()
+      db.from('strategies').select('*').eq('workspace_id', wsId).order('created_at', { ascending: false }).limit(1),
+      db.from('workspace_config').select('*').eq('workspace_id', wsId).single()
     ])
     strategy = sRes.data?.[0] || null
     config = cRes.data || null
   }
 
   // Get RAG context
-  const ragContext = await buildRAGContext(workspace_id, 'content calendar planning strategy topics')
+  const ragContext = await buildRAGContext(wsId, 'content calendar planning strategy topics')
 
   const mix = config?.content_mix || DEFAULT_MIX
   const platforms = config?.brand_brief?.platforms || ['youtube', 'tiktok']
@@ -92,7 +93,7 @@ Return JSON array of content items:
       for (const item of items.slice(0, totalPosts + 5)) {
         // Create video stub
         const { data: video } = await db.from('videos').insert({
-          workspace_id,
+          workspace_id: wsId,
           title: item.title,
           topic: item.topic,
           status: 'draft',
@@ -104,7 +105,7 @@ Return JSON array of content items:
         if (video) {
           // Create calendar entry
           const { data: calEntry } = await db.from('content_calendar').insert({
-            workspace_id,
+            workspace_id: wsId,
             video_id: video.id,
             campaign_id,
             scheduled_date: item.scheduled_date,

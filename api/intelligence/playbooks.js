@@ -5,7 +5,7 @@
  * POST /api/intelligence/playbooks/apply
  * Apply a playbook formula to generate a specific title/hook/cta/etc.
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 
 export default async function handler(req, res) {
@@ -15,9 +15,10 @@ export default async function handler(req, res) {
     const db = getServerSupabase()
     if (!db) return res.status(200).json({ playbooks: [] })
 
+    const wsId = coerceWorkspaceId(workspace_id)
     let query = db.from('channel_playbooks')
       .select('*')
-      .eq('workspace_id', workspace_id)
+      .eq('workspace_id', wsId)
       .order('success_rate', { ascending: false })
 
     if (playbook_type) query = query.eq('playbook_type', playbook_type)

@@ -5,7 +5,7 @@
  * DELETE /api/knowledge/assets?id=<asset_id>
  * Soft-delete a knowledge asset (and its chunks/objects via CASCADE).
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 
 export default async function handler(req, res) {
   const { workspace_id, id } = req.method === 'DELETE' ? req.query : req.query
@@ -14,11 +14,13 @@ export default async function handler(req, res) {
   const db = getServerSupabase()
   if (!db) return res.status(200).json({ assets: [], mode: 'no-db' })
 
+  const wsId = coerceWorkspaceId(workspace_id)
+
   if (req.method === 'GET') {
     const { data, error } = await db
       .from('knowledge_assets')
       .select('id, title, asset_type, source_url, ingestion_status, chunk_count, object_count, categories, created_at, ingested_at')
-      .eq('workspace_id', workspace_id)
+      .eq('workspace_id', wsId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
 

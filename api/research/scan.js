@@ -6,7 +6,7 @@
  * Body: { workspace_id, query_type, query?, target_urls?, target_platforms? }
  * query_type: competitors | trends | niche | audience | keywords
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { enqueue } from '../_queue.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { embed } from '../_providers/embed.js'
@@ -18,12 +18,13 @@ export default async function handler(req, res) {
   if (!workspace_id || !query_type) return res.status(400).json({ error: 'workspace_id and query_type required' })
 
   const db = getServerSupabase()
+  const wsId = coerceWorkspaceId(workspace_id)
 
   // Log the research query
   let queryRecord = { id: `local_${Date.now()}` }
   if (db) {
     const { data } = await db.from('research_queries').insert({
-      workspace_id, query_type, query, target_urls, target_platforms,
+      workspace_id: wsId, query_type, query, target_urls, target_platforms,
       status: 'pending', triggered_by: 'user'
     }).select().single()
     queryRecord = data || queryRecord
@@ -31,13 +32,13 @@ export default async function handler(req, res) {
 
   // For URL-based competitor/channel research, run inline (fast)
   if (query_type === 'competitors' && target_urls.length > 0) {
-    const results = await researchUrls(target_urls, workspace_id, queryRecord.id, db)
+    const results = await researchUrls(target_urls, wsId, queryRecord.id, db)
     return res.status(200).json({ query_id: queryRecord.id, results, status: 'complete' })
   }
 
   // For broad research, enqueue async job
   const job = await enqueue({
-    workspace_id,
+    workspace_id: wsId,
     job_type: 'agent:research',
     payload: { query_type, query, target_urls, target_platforms, query_id: queryRecord.id },
     priority: 2,

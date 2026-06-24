@@ -3,7 +3,7 @@
  * Fetch research results for a workspace.
  * Query: { workspace_id, query_id?, result_type?, limit? }
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -14,9 +14,11 @@ export default async function handler(req, res) {
   const db = getServerSupabase()
   if (!db) return res.status(200).json({ results: [], queries: [] })
 
+  const wsId = coerceWorkspaceId(workspace_id)
+
   let query = db.from('research_results')
     .select('*')
-    .eq('workspace_id', workspace_id)
+    .eq('workspace_id', wsId)
     .order('created_at', { ascending: false })
     .limit(parseInt(limit))
 
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
   // Also fetch query history
   const { data: queries } = await db.from('research_queries')
     .select('id, query_type, query, status, result_count, created_at, completed_at')
-    .eq('workspace_id', workspace_id)
+    .eq('workspace_id', wsId)
     .order('created_at', { ascending: false })
     .limit(20)
 

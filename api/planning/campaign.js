@@ -6,7 +6,7 @@
  * Body: { workspace_id, name, campaign_type, goal, start_date, end_date, target_post_count, target_platforms }
  * campaign_type: campaign | series | launch
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { buildRAGContext } from '../knowledge/rag.js'
 
@@ -22,12 +22,13 @@ export default async function handler(req, res) {
   if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' })
 
   const db = getServerSupabase()
+  const wsId = coerceWorkspaceId(workspace_id)
 
   // Create campaign record
   let campaign = { id: `local_${Date.now()}`, name, campaign_type }
   if (db) {
     const { data, error } = await db.from('campaigns').insert({
-      workspace_id, name, campaign_type, goal,
+      workspace_id: wsId, name, campaign_type, goal,
       start_date, end_date, target_post_count, target_platforms,
       status: 'planning'
     }).select().single()
@@ -36,7 +37,7 @@ export default async function handler(req, res) {
   }
 
   // Generate campaign content plan
-  const ragContext = await buildRAGContext(workspace_id, `${campaign_type} content planning ${goal || name}`)
+  const ragContext = await buildRAGContext(wsId, `${campaign_type} content planning ${goal || name}`)
   const daySpan = start_date && end_date
     ? Math.ceil((new Date(end_date) - new Date(start_date)) / 86400000)
     : 21
@@ -83,7 +84,7 @@ Return JSON:
     if (db && posts.length > 0) {
       for (const post of posts) {
         const { data: video } = await db.from('videos').insert({
-          workspace_id, title: post.title, topic: post.topic,
+          workspace_id: wsId, title: post.title, topic: post.topic,
           status: 'draft', target_platforms: post.platforms || target_platforms,
           scheduled_time: post.scheduled_date ? `${post.scheduled_date}T09:00:00Z` : null
         }).select().single()
@@ -97,7 +98,7 @@ Return JSON:
             notes: post.connects_to
           })
           await db.from('content_calendar').insert({
-            workspace_id, video_id: video.id, campaign_id: campaign.id,
+            workspace_id: wsId, video_id: video.id, campaign_id: campaign.id,
             scheduled_date: post.scheduled_date,
             content_pillar: post.content_pillar,
             status: 'planned'

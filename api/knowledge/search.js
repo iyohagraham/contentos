@@ -6,7 +6,7 @@
  * Body: { workspace_id, query, type?: 'chunks'|'objects'|'both', object_type?, limit?, threshold? }
  * Returns: { chunks: [], objects: [], total: number }
  */
-import { getServerSupabase, rpc } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId, rpc } from '../_db.js'
 import { embed, hasEmbedProvider } from '../_providers/embed.js'
 
 export default async function handler(req, res) {
@@ -22,6 +22,8 @@ export default async function handler(req, res) {
   } = req.body
 
   if (!query) return res.status(400).json({ error: 'query required' })
+
+  const wsId = coerceWorkspaceId(workspace_id)
 
   try {
     // Without embed provider, fall back to text search
@@ -39,7 +41,7 @@ export default async function handler(req, res) {
         query_embedding: queryEmbedding,
         match_threshold: threshold,
         match_count: limit,
-        p_workspace_id: workspace_id || null
+        p_workspace_id: wsId
       })
       results.chunks = data || []
     }
@@ -49,16 +51,16 @@ export default async function handler(req, res) {
         query_embedding: queryEmbedding,
         match_threshold: threshold - 0.05, // slightly lower bar for objects
         match_count: Math.ceil(limit / 2),
-        p_workspace_id: workspace_id || null,
+        p_workspace_id: wsId,
         p_object_type: object_type || null
       })
       results.objects = data || []
     }
 
     // Log the search for relevance improvement
-    if (db && workspace_id) {
+    if (db && wsId) {
       await db.from('knowledge_search_log').insert({
-        workspace_id,
+        workspace_id: wsId,
         query_text: query,
         query_embedding: queryEmbedding,
         result_ids: [...results.chunks.map(c => c.id), ...results.objects.map(o => o.id)],

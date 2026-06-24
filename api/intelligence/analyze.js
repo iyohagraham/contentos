@@ -6,7 +6,7 @@
  * Body: { workspace_id, channel_url, platform?, sample_count? }
  * Returns: { analysis_id, dna: {...}, playbooks: [...], versions: [...] }
  */
-import { getServerSupabase } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { textGenerateJSON } from '../_providers/text.js'
 import { embed } from '../_providers/embed.js'
 import { fetchChannelSamples, performanceTier, detectPlatform, normalizeSamples } from './_sources.js'
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
   if (!workspace_id || !channel_url) return res.status(400).json({ error: 'workspace_id and channel_url required' })
 
   const db = getServerSupabase()
+  const wsId = coerceWorkspaceId(workspace_id)
 
   try {
     // Step 1: Get REAL recent content samples. Priority:
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
     let analysis = { id: `local_${Date.now()}` }
     if (db) {
       const { data } = await db.from('channel_analyses').insert({
-        workspace_id, channel_url, platform,
+        workspace_id: wsId, channel_url, platform,
         handle: meta.handle, display_name: meta.display_name,
         subscribers: meta.subscribers, total_views: meta.total_views, video_count: meta.video_count,
         videos_analyzed: 0, sample_period_days: 90
@@ -87,7 +88,7 @@ export default async function handler(req, res) {
     const dna = await extractDNA(channel_url, meta, platform, samples)
 
     // Step 4: Generate playbooks from DNA
-    const playbooks = await generatePlaybooks(dna, workspace_id, analysis.id, db)
+    const playbooks = await generatePlaybooks(dna, wsId, analysis.id, db)
 
     // Step 5: Generate Version Builder suggestions
     const versions = generateVersions(dna, platform)
@@ -107,7 +108,7 @@ export default async function handler(req, res) {
       // Store version suggestions
       for (const v of versions) {
         await db.from('channel_versions').insert({
-          workspace_id, source_analysis_id: analysis.id,
+          workspace_id: wsId, source_analysis_id: analysis.id,
           version_type: v.type, name: v.name,
           description: v.description, modifications: v.modifications,
           projected_performance: v.projected_performance

@@ -8,7 +8,7 @@
  *   const { content } = await textChat(messages, { systemPrompt: basePrompt + context })
  */
 import { embed, hasEmbedProvider } from '../_providers/embed.js'
-import { getServerSupabase, rpc } from '../_db.js'
+import { getServerSupabase, coerceWorkspaceId, rpc } from '../_db.js'
 
 /**
  * Build a RAG context string for injection into an agent's system prompt.
@@ -24,6 +24,7 @@ export async function buildRAGContext(workspaceId, task, opts = {}) {
   if (!db) return ''
 
   const { maxChunks = 5, maxObjects = 5, threshold = 0.72, objectTypes = null } = opts
+  const wsId = coerceWorkspaceId(workspaceId)
 
   try {
     const queryEmbedding = await embed(task)
@@ -33,13 +34,13 @@ export async function buildRAGContext(workspaceId, task, opts = {}) {
         query_embedding: queryEmbedding,
         match_threshold: threshold,
         match_count: maxChunks,
-        p_workspace_id: workspaceId
+        p_workspace_id: wsId
       }),
       rpc('match_knowledge_objects', {
         query_embedding: queryEmbedding,
         match_threshold: threshold - 0.05,
         match_count: maxObjects,
-        p_workspace_id: workspaceId,
+        p_workspace_id: wsId,
         p_object_type: objectTypes?.[0] || null
       })
     ])
