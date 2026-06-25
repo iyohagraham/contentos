@@ -975,3 +975,134 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_owner" ON notifications FOR ALL USING (
   workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid())
 );
+
+-- ============================================
+-- AI MEDIA OS v2.0 — ENGINE PIPELINE (resumable projects + per-engine outputs)
+-- ============================================
+
+-- A media_project is one run through the engine pipeline. It is RESUMABLE: each
+-- engine writes its output to engine_outputs; current_stage tracks progress.
+CREATE TABLE IF NOT EXISTS media_projects (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  brief TEXT,                       -- the seed prompt/topic that starts the pipeline
+  format TEXT DEFAULT '9:16',       -- 9:16 | 16:9 | 1:1
+  -- structural references (Franchise hierarchy)
+  franchise_id UUID,
+  season INT,
+  series INT,
+  episode INT,
+  style_profile_id UUID,
+  universe_id UUID,
+  brand_id UUID,
+  -- pipeline state
+  status TEXT DEFAULT 'draft',      -- draft | running | blocked | complete | failed
+  current_stage TEXT,               -- last engine id that completed (e.g. 'storyboard')
+  stages_done JSONB DEFAULT '[]',   -- ordered list of completed engine ids
+  final_video_url TEXT,
+  thumbnail_url TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_media_projects_ws ON media_projects (workspace_id, status, updated_at DESC);
+
+-- One row per (project, engine) — the structured JSON contract each engine emitted.
+-- Re-running an engine upserts (project_id, engine_id), so projects are resumable
+-- and each stage is independently re-runnable.
+CREATE TABLE IF NOT EXISTS engine_outputs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES media_projects(id) ON DELETE CASCADE,
+  engine_id TEXT NOT NULL,          -- 'knowledge' | 'storyboard' | 'scene_planner' | ...
+  contract TEXT,                    -- the contract name this output satisfies
+  output JSONB DEFAULT '{}',        -- the contract-shaped JSON the engine returned
+  status TEXT DEFAULT 'complete',   -- complete | stub | failed
+  duration_ms INT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (project_id, engine_id)
+);
+CREATE INDEX IF NOT EXISTS idx_engine_outputs_project ON engine_outputs (project_id, engine_id);
+
+-- Reusable building blocks (the Asset Manager / Style / Universe / Brand / Character /
+-- Franchise engines persist here instead of folding into workspace_config).
+CREATE TABLE IF NOT EXISTS style_profiles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  profile JSONB DEFAULT '{}',       -- STYLE_PROFILE contract
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_style_profiles_ws ON style_profiles (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS brands (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  brand JSONB DEFAULT '{}',         -- BRAND contract
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_brands_ws ON brands (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS universes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  universe JSONB DEFAULT '{}',      -- UNIVERSE contract (world bible)
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_universes_ws ON universes (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS characters (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  universe_id UUID REFERENCES universes(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  character JSONB DEFAULT '{}',     -- CHARACTER contract
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_characters_ws ON characters (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS franchises (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  universe_id UUID REFERENCES universes(id) ON DELETE SET NULL,
+  brand_id UUID REFERENCES brands(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  hierarchy JSONB DEFAULT '{}',     -- assembled Universe->...->Episode tree
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_franchises_ws ON franchises (workspace_id, created_at DESC);
+
+-- updated_at triggers
+CREATE TRIGGER media_projects_updated BEFORE UPDATE ON media_projects FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER engine_outputs_updated BEFORE UPDATE ON engine_outputs FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER style_profiles_updated BEFORE UPDATE ON style_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER brands_updated BEFORE UPDATE ON brands FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER universes_updated BEFORE UPDATE ON universes FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER characters_updated BEFORE UPDATE ON characters FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER franchises_updated BEFORE UPDATE ON franchises FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- RLS (workspace-scoped; NULL workspace allowed for pre-auth/global)
+ALTER TABLE media_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE engine_outputs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE style_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE brands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE universes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE characters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE franchises ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "workspace_owner" ON media_projects FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON engine_outputs FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON style_profiles FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON brands FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON universes FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON characters FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));
+CREATE POLICY "workspace_owner" ON franchises FOR ALL USING (workspace_id IS NULL OR workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid()));

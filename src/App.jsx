@@ -2,7 +2,7 @@ import React, { useState, lazy, Suspense } from 'react'
 import {
   LayoutDashboard, Target, Video, Layers, Calendar, BarChart3, DollarSign,
   Globe, Settings, Plus, Zap, Menu, X as XIcon, Brain, GraduationCap,
-  Search, Bot, Monitor, Database, HardDrive, Loader2
+  Search, Bot, Monitor, Database, HardDrive, Loader2, Clapperboard
 } from 'lucide-react'
 import { useChannels, useVideos, useProducts, useStrategies, useDbMode } from './lib/db/useStore.js'
 import { channelToDisplay, videoToDisplay, productToDisplay } from './lib/format.js'
@@ -26,6 +26,7 @@ const IntelligenceView = lazy(() => import('./views/IntelligenceView.jsx'))
 const AgentsView = lazy(() => import('./views/AgentsView.jsx'))
 const WorkspaceConfigView = lazy(() => import('./views/WorkspaceConfigView.jsx'))
 const MonitorView = lazy(() => import('./views/MonitorView.jsx'))
+const StudioView = lazy(() => import('./views/StudioView.jsx'))
 
 function ViewFallback() {
   return (
@@ -78,6 +79,8 @@ function App() {
           <NavItem icon={BarChart3} label="Analytics" active={activeView === 'analytics'} onClick={() => setActiveView('analytics')} expanded={sidebarOpen} />
           <NavItem icon={DollarSign} label="Monetize" active={activeView === 'monetize'} onClick={() => setActiveView('monetize')} expanded={sidebarOpen} />
           <NavItem icon={Globe} label="Channels" active={activeView === 'channels'} onClick={() => setActiveView('channels')} expanded={sidebarOpen} />
+          {sidebarOpen && <div className="px-3 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-semibold">AI Media OS</div>}
+          <NavItem icon={Clapperboard} label="Studio" active={activeView === 'studio'} onClick={() => setActiveView('studio')} expanded={sidebarOpen} />
           {sidebarOpen && <div className="px-3 pt-3 pb-1 text-xs text-slate-600 uppercase tracking-wider font-semibold">Intelligence</div>}
           <NavItem icon={Brain} label="Knowledge" active={activeView === 'knowledge'} onClick={() => setActiveView('knowledge')} expanded={sidebarOpen} />
           <NavItem icon={GraduationCap} label="Skills" active={activeView === 'skills'} onClick={() => setActiveView('skills')} expanded={sidebarOpen} />
@@ -123,6 +126,7 @@ function App() {
             {activeView === 'agents' && <AgentsView workspaceId={workspaceId} />}
             {activeView === 'workspace' && <WorkspaceConfigView workspaceId={workspaceId} />}
             {activeView === 'monitor' && <MonitorView workspaceId={workspaceId} />}
+            {activeView === 'studio' && <StudioView workspaceId={workspaceId} />}
           </Suspense>
         </main>
       </div>
