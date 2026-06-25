@@ -60,13 +60,23 @@ export default async function handler(req, res) {
     if (chars?.length) bag.characters = [...bag.characters, ...chars.map((c) => c.character)]
 
     try {
-      const result = await runEngine(next, bag, { workspaceId: project.workspace_id, db })
+      // Continuity runs in auto-fix mode.
+      const stageInput = next === 'continuity' ? { ...bag, apply: true } : bag
+      const result = await runEngine(next, stageInput, { workspaceId: project.workspace_id, db })
       const meta = getEngine(next)
       const contract = (meta?.outputs || [])[0] || null
       await db.from('engine_outputs').upsert({
         workspace_id: project.workspace_id, project_id: project.id, engine_id: next, contract,
         output: result.output, status: result.status, duration_ms: result.durationMs
       }, { onConflict: 'project_id,engine_id' })
+
+      // Persist a continuity-corrected storyboard so the next tick's scene_planner uses it.
+      if (next === 'continuity' && result.output?.fixed) {
+        await db.from('engine_outputs').upsert({
+          workspace_id: project.workspace_id, project_id: project.id, engine_id: 'storyboard',
+          contract: 'storyboard', output: result.output.fixed, status: 'fixed'
+        }, { onConflict: 'project_id,engine_id' }).catch(() => {})
+      }
 
       done.add(next)
       const blocked = result.output && result.output.selected === false

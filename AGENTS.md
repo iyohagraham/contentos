@@ -369,6 +369,11 @@ CRON_MAX_JOBS=                # default 5
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
 
+### 2026-06-24 — Continuity auto-fix wired into pipeline + Franchise persistence
+- **What:** (1) The orchestrator (`api/studio/pipeline.js`) and cron (`api/cron/advance-projects.js`) now run **Continuity with `apply:true`**; when it returns a corrected `fixed` storyboard, that replaces the storyboard the downstream Scene Planner uses (cron persists it back into the `storyboard` engine_output so the next tick picks it up) — wardrobe drift self-corrects mid-pipeline. (2) **Franchise persistence** — `api/franchises.js` (CRUD) bridges the pure Franchise engine to the `franchises` table: POST runs the engine (assemble flat nodes or plan a Season→Series→Episode scaffold) and SAVES the hierarchy; GET lists/loads; DELETE removes. Media ecosystems now persist across sessions.
+- **Why:** Close the loop on continuity (detect → fix → **apply in-pipeline**) and make the Franchise hierarchy durable so projects can reference franchise/season/series/episode.
+- **Impact:** Autonomous runs auto-resolve outfit drift; franchises survive sessions. Verified: continuity-apply forwards the fixed storyboard; franchise assemble/plan + save path works. `node --check` all green; `vite build` green.
+
 ### 2026-06-24 — Continuity auto-fix (suggestions + apply mode)
 - **What:** The Continuity engine now (a) attaches a concrete `fix` suggestion to every issue (unknown_character/prop/location → "add to universe or rename/remove"; outfit_drift → "pin to first-seen outfit or add a wardrobe-change beat"), and (b) with `apply:true` returns a corrected `fixed` storyboard/scene_plan — outfit drift is auto-resolved by pinning each character to its first-seen (canonical) outfit across later shots (`applied_fixes` count). Unknown entities are reported, not silently deleted (safe). Works on both storyboard `shots[]` and scene_plan `scenes[].metadata`.
 - **Why:** Flagging issues isn't enough for autonomy — the pipeline needs a safe automatic correction for the most common drift (wardrobe), plus actionable guidance for the rest.

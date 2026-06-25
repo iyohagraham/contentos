@@ -75,9 +75,11 @@ export default async function handler(req, res) {
   const stagesDone = new Set(Array.isArray(project.stages_done) ? project.stages_done : [])
 
   for (const engineId of stages) {
+    // Continuity runs in auto-fix mode so wardrobe drift is corrected in-pipeline.
+    const stageInput = engineId === 'continuity' ? { ...bag, apply: true } : bag
     let result
     try {
-      result = await runEngine(engineId, bag, { workspaceId: wsId, db })
+      result = await runEngine(engineId, stageInput, { workspaceId: wsId, db })
     } catch (err) {
       await db.from('engine_outputs').upsert({ workspace_id: wsId, project_id: project.id, engine_id: engineId, status: 'failed', output: { error: err.message } }, { onConflict: 'project_id,engine_id' }).catch(() => {})
       await db.from('media_projects').update({ status: 'failed', current_stage: engineId }).eq('id', project.id).catch(() => {})
@@ -99,6 +101,8 @@ export default async function handler(req, res) {
     if (key) bag[key] = result.output
     // composition's manifest is nested under .manifest
     if (engineId === 'composition' && result.output?.manifest) bag.manifest = result.output.manifest
+    // continuity auto-fix: a corrected storyboard replaces the one scene_planner uses.
+    if (engineId === 'continuity' && result.output?.fixed) bag.storyboard = result.output.fixed
 
     // Pause politely if a stage couldn't fulfill (e.g. needs a media/voice provider).
     if (stop_on_request_spec && result.output && result.output.selected === false) {
