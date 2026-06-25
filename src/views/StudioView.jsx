@@ -134,8 +134,9 @@ function StudioView({ workspaceId }) {
 
 /** The invocable engine ids that the studio runner can execute directly. */
 const RUNNABLE = new Set([
-  'creative_director', 'style', 'universe', 'character', 'brand',
-  'storyboard', 'continuity', 'scene_planner', 'music', 'composition', 'franchise'
+  'knowledge', 'creative_director', 'story', 'style', 'universe', 'character', 'brand',
+  'storyboard', 'continuity', 'scene_planner', 'media_router', 'voice', 'music',
+  'composition', 'rendering', 'franchise'
 ])
 
 function statusColor(status) {
@@ -168,6 +169,8 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
   const [running, setRunning] = useState(null)
   const [inspect, setInspect] = useState(null)
   const [runError, setRunError] = useState(null)
+  const [runningAll, setRunningAll] = useState(false)
+  const [pipelineResult, setPipelineResult] = useState(null)
 
   const pipeline = (architecture.pipeline || []).filter(e => (e.order || 0) > 0)
 
@@ -189,17 +192,50 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
     setRunning(null)
   }
 
+  async function runFullPipeline() {
+    setRunningAll(true)
+    setRunError(null)
+    setPipelineResult(null)
+    try {
+      const res = await fetch('/api/studio/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, project_id: project.id })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Pipeline run failed')
+      setPipelineResult(data)
+      onUpdate(project)
+    } catch (err) {
+      setRunError(err.message)
+    }
+    setRunningAll(false)
+  }
+
   const done = new Set(project.stages_done || [])
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-lg">{project.title}</h3>
-          <p className="text-sm text-slate-400">{project.brief}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-lg truncate">{project.title}</h3>
+          <p className="text-sm text-slate-400 truncate">{project.brief}</p>
         </div>
-        <span className="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 capitalize">{project.status}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 capitalize">{project.status}</span>
+          <button onClick={runFullPipeline} disabled={runningAll}
+            className="bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1.5 transition-colors">
+            {runningAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}Run full pipeline
+          </button>
+        </div>
       </div>
+
+      {pipelineResult && (
+        <div className="text-xs text-slate-400 bg-slate-950 border border-slate-800 rounded-lg p-3">
+          Ran {pipelineResult.ran?.length || 0} stages → <span className="capitalize text-slate-200">{pipelineResult.status}</span>
+          {pipelineResult.stopped_at && <span className="text-amber-400"> (paused at {pipelineResult.stopped_at} — needs a provider)</span>}
+        </div>
+      )}
 
       {runError && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{runError}</p>}
 

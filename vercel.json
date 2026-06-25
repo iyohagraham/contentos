@@ -35,6 +35,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/advance-projects",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/research-scan",
       "schedule": "0 8 * * 0"
     },

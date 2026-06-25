@@ -10,6 +10,7 @@
 import { getServerSupabase } from '../_db.js'
 
 const MODULES = {
+  // standalone engines
   composition: () => import('./composition/hyperframes.js'),
   creative_director: () => import('./creative-director.js'),
   style: () => import('./style.js'),
@@ -20,7 +21,13 @@ const MODULES = {
   continuity: () => import('./continuity.js'),
   scene_planner: () => import('./scene-planner.js'),
   music: () => import('./music.js'),
-  franchise: () => import('./franchise.js')
+  franchise: () => import('./franchise.js'),
+  // adapters over existing implementations (knowledge/story/media/voice/rendering)
+  knowledge: () => import('./adapters/knowledge.js'),
+  story: () => import('./adapters/story.js'),
+  media_router: () => import('./adapters/media-router.js'),
+  voice: () => import('./adapters/voice.js'),
+  rendering: () => import('./adapters/rendering.js')
 }
 
 /** @returns {string[]} engine ids invokable via this module. */
