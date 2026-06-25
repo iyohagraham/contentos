@@ -1,6 +1,6 @@
 # AGENTS.md — ContentOS Single Source of Truth
 
-> **This file is the canonical handoff doc for any coding agent** (Claude Code, OpenCode, Goose, Gemini CLI, Codex, etc.). Read it first. It supersedes the older, partly-stale docs (`CONTENTOS_STATUS.md`, `CONTENTOS_TASKS.md`, `CONTENTOS_CLAUDE_HANDOFF.md`) — trust this file and the codebase over those.
+> **This file is the canonical handoff doc for any coding agent** (Claude Code, OpenCode, Goose, Gemini CLI, Codex, etc.). Read it first. It supersedes the older, partly-stale docs now in `docs/archive/` (`CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md`) — trust this file and the codebase over those. Live status is in **STATUS.md**; the work queue in **TASKS.md**; go-live in **ACTIVATION.md**.
 >
 > **Maintenance rule:** whenever you make a significant code change or architectural decision, update the relevant sections here AND append an entry to **Agent Memory**. Treat AGENTS.md as part of "done."
 >
@@ -263,7 +263,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 | Client-side `src/lib/fal.js` | ✅ Resolved | Deleted — superseded by server routes, key-exposure risk eliminated; zero importers. |
 | `src/App.jsx` ~2300 lines | ✅ Resolved | Split into 16 per-view files (`src/views/*.jsx`) + shared `src/lib/ui.jsx` (StatCard/QuickActionCard/PLATFORMS). App.jsx is now the slim sidebar+dispatch shell (~126 lines). `NavItem` kept in App.jsx (sidebar-only). Extraction was verbatim (sed line-ranges) preserving exact prop interfaces — `vite build` green, bundle unchanged. No behavior change (no code-splitting yet — views are still statically imported). Follow-up: WorkspaceContext to drop prop-drilling + `React.lazy` code-splitting to shrink the ~586 KB bundle. |
 | Frontend bundle | ✅ Resolved | `React.lazy` + `Suspense` code-splitting: all 16 views are dynamic-imported, each its own chunk (45 chunks total). Initial bundle **586 KB → 387 KB** (gzip 152 → 110 KB, ~34% smaller); only the shell + landed view (dashboard) load up front. Remaining ~387 KB is React + recharts + shell — split recharts out next if it matters. |
-| Stale root docs | Low | `CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md` are outdated — this file supersedes them |
+| Stale root docs | ✅ Resolved | Moved to `docs/archive/` (`CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md`). Live status is STATUS.md; AGENTS.md is canonical. |
 | `apply.js` invocation counter | Low | read-modify-write race; fine for single-user |
 
 ## Known Issues
