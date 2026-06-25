@@ -369,6 +369,11 @@ CRON_MAX_JOBS=                # default 5
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
 
+### 2026-06-24 — Closed the Library→Project loop (style + universe inheritance)
+- **What:** The New Project modal now has optional **Style Profile** + **Universe** pickers (loaded from `/api/library`); the chosen ids save on `media_projects` (`style_profile_id`/`universe_id`). The orchestrator + cron load those references into the pipeline bag (`style_profile_id`→`style_profile`, `universe_id`→`universe`), so Storyboard inherits the visual language and the Media Loop inherits the universe's character roster (on top of saved workspace characters).
+- **Why:** Building blocks are only useful if projects can reference them. This wires Library assets straight into the autonomous pipeline.
+- **Impact:** Full loop closed — generate a Style/Universe/Character in the Library, attach them at project creation, and the pipeline produces on-brand, on-model, character-consistent content automatically. `node --check` + `vite build` green.
+
 ### 2026-06-24 — Library: reusable building blocks (Style/Brand/Universe/Character)
 - **What:** `api/library.js` — one endpoint over the 4 asset tables (`style_profiles`/`brands`/`universes`/`characters`). POST generates the block via its engine (AI-assisted + contract-validated) and persists the contract JSON; GET lists; DELETE removes. StudioView gained **Projects | Library** tabs; the Library panel picks a type, names it, "Generate" (runs the engine + saves), and lists/inspects-JSON/deletes items.
 - **Why:** The reusable building blocks (style profiles, brand kits, universes, recurring characters) need a UI + persistence so projects can reference them — esp. characters for cross-episode consistency (feeds the Media Loop roster).
