@@ -217,6 +217,22 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
     setSavingEdit(false)
   }
 
+  async function restorePrevious(engineId) {
+    setEditError(null)
+    setSavingEdit(true)
+    try {
+      const res = await fetch('/api/studio/run', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, project_id: project.id, engine: engineId, restore_index: 0 })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Restore failed')
+      onUpdate(project)
+    } catch (err) { setEditError(err.message) }
+    setSavingEdit(false)
+  }
+
   const pipeline = (architecture.pipeline || []).filter(e => (e.order || 0) > 0)
 
   async function runEngine(engineId) {
@@ -333,10 +349,18 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
         <div className="mt-2">
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs text-slate-500">{inspect} output ({outputs[inspect].contract}) — editable</p>
-            <button onClick={() => saveEdit(inspect)} disabled={savingEdit}
-              className="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-cyan-400 px-2.5 py-1 rounded flex items-center gap-1.5">
-              {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Save edits
-            </button>
+            <div className="flex gap-1.5">
+              {outputs[inspect].history_count > 0 && (
+                <button onClick={() => restorePrevious(inspect)} disabled={savingEdit}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-amber-400 px-2.5 py-1 rounded flex items-center gap-1.5" title="Revert to the previous version">
+                  <RefreshCw className="w-3.5 h-3.5" />Restore ({outputs[inspect].history_count})
+                </button>
+              )}
+              <button onClick={() => saveEdit(inspect)} disabled={savingEdit}
+                className="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-cyan-400 px-2.5 py-1 rounded flex items-center gap-1.5">
+                {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Save edits
+              </button>
+            </div>
           </div>
           <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} spellCheck={false}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 font-mono h-72 focus:outline-none focus:border-cyan-500" />

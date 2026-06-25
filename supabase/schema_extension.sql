@@ -1018,13 +1018,16 @@ CREATE TABLE IF NOT EXISTS engine_outputs (
   engine_id TEXT NOT NULL,          -- 'knowledge' | 'storyboard' | 'scene_planner' | ...
   contract TEXT,                    -- the contract name this output satisfies
   output JSONB DEFAULT '{}',        -- the contract-shaped JSON the engine returned
-  status TEXT DEFAULT 'complete',   -- complete | stub | failed
+  history JSONB DEFAULT '[]',       -- prior outputs (newest first, capped) for re-run/edit undo
+  status TEXT DEFAULT 'complete',   -- complete | stub | failed | edited | fixed
   duration_ms INT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (project_id, engine_id)
 );
 CREATE INDEX IF NOT EXISTS idx_engine_outputs_project ON engine_outputs (project_id, engine_id);
+-- idempotent for already-provisioned DBs (CREATE TABLE IF NOT EXISTS won't add columns):
+ALTER TABLE engine_outputs ADD COLUMN IF NOT EXISTS history JSONB DEFAULT '[]';
 
 -- Reusable building blocks (the Asset Manager / Style / Universe / Brand / Character /
 -- Franchise engines persist here instead of folding into workspace_config).

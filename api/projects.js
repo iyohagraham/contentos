@@ -31,9 +31,9 @@ async function route(req, res) {
       const { data: project, error } = await db.from('media_projects').select('*').eq('id', id).maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!project) return res.status(404).json({ error: 'project not found' })
-      const { data: rows } = await db.from('engine_outputs').select('engine_id, contract, output, status, duration_ms, updated_at').eq('project_id', id)
+      const { data: rows } = await db.from('engine_outputs').select('engine_id, contract, output, status, duration_ms, updated_at, history').eq('project_id', id)
       const outputs = {}
-      for (const r of (rows || [])) outputs[r.engine_id] = { contract: r.contract, status: r.status, duration_ms: r.duration_ms, updated_at: r.updated_at, output: r.output }
+      for (const r of (rows || [])) outputs[r.engine_id] = { contract: r.contract, status: r.status, duration_ms: r.duration_ms, updated_at: r.updated_at, output: r.output, history_count: Array.isArray(r.history) ? r.history.length : 0 }
       return res.status(200).json({ project, outputs })
     }
 

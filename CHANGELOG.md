@@ -16,6 +16,11 @@
 - **Studio → Franchises tab** — scaffold a Season→Series→Episode hierarchy
   (`/api/franchises`), browse the tree, and spawn an episode-project (links
   `franchise_id`/`universe_id`) straight into the Projects pipeline.
+- **Stage-output versioning** — re-running or editing a pipeline stage now
+  preserves the previous output as `engine_outputs.history` (newest-first, capped
+  10). `PATCH /api/studio/run { restore_index }` reverts; StudioView shows a
+  "Restore (N)" button in the stage editor. Schema: `history JSONB` column added
+  (idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS`).
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,
