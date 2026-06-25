@@ -5,7 +5,7 @@
 > **Maintenance rule:** whenever you make a significant code change or architectural decision, update the relevant sections here AND append an entry to **Agent Memory**. Treat AGENTS.md as part of "done."
 >
 > **Working mode:** **autonomous.** Continue the next highest-priority unfinished task without asking permission for low-stakes local actions — committing work, deleting dead code, splitting files, running builds/checks, continuing dev tasks. Default to acting. Do NOT, however:
-> - **push to `origin/main`** without an explicit go-ahead — a live `KIMI_API_KEY` sits in git history; rotate it at console.moonshot.ai first (otherwise the push leaks it publicly). Local commits are fine.
+> - **push to `origin/main`** without an explicit go-ahead — the repo is **public**. (The leaked `KIMI_API_KEY` has been purged from all git history via `git filter-repo` + force-push, but the operator must still rotate it at console.moonshot.ai — it was publicly visible for a window.)
 > - make **paid generation / external-billable calls** (Runware/fal/OpenAI/Kimi/scraper) without confirmation.
 > - change **architecture** or **DB schema** without first recording the decision here.
 >
@@ -58,31 +58,31 @@ React 18 + Vite SPA (src/)                Vercel Serverless Functions (api/*.js,
 
 ## System Architecture — The 21 Engines
 
-Single-responsibility engines, communicating via JSON contracts. **11 live / 10 stub** (stub = contract + interface defined, implementation pending — runnable, returns contract-shaped `_stub` JSON). The pipeline order IS the production pipeline.
+Single-responsibility engines, communicating via JSON contracts. **21/21 live** — every engine takes a JSON contract in, returns a validated contract out, self-checks its output, and never hard-fails (AI-first with deterministic fallback where applicable). The pipeline order IS the production pipeline.
 
 | # | Engine | Responsibility | Status | Implementation |
 |---|---|---|---|---|
 | 1 | **Knowledge** | Research/ingest/verify → structured knowledge (RAG) | live | `api/knowledge/*` |
-| 2 | **Creative Director** | Decide what the audience should FEEL (tone/energy/pacing) | stub | `api/_engines/creative-director.js` |
+| 2 | **Creative Director** | Decide what the audience should FEEL (tone/energy/pacing) | live | `api/_engines/creative-director.js` |
 | 3 | **Strategy** | Brand-level strategy: seasons, calendars, schedules, growth | live | `api/agents/strategy.js` + `api/planning/*` |
-| 4 | **Style** | Reusable style profiles (fonts/colors/camera/rhythm/captions) | stub | `api/_engines/style.js` |
-| 5 | **Universe** | World bible: characters/locations/props/rules/lore/timelines | stub | `api/_engines/universe.js` |
-| 6 | **Character** | Character consistency: faces/voices/expressions/outfits/poses | stub | `api/_engines/character.js` |
-| 7 | **Brand** | Business identity: logo/colors/fonts/voice/tone/CTA rules | stub | `api/_engines/brand.js` |
+| 4 | **Style** | Reusable style profiles (fonts/colors/camera/rhythm/captions) | live | `api/_engines/style.js` |
+| 5 | **Universe** | World bible: characters/locations/props/rules/lore/timelines | live | `api/_engines/universe.js` |
+| 6 | **Character** | Character consistency: faces/voices/expressions/outfits/poses | live | `api/_engines/character.js` |
+| 7 | **Brand** | Business identity: logo/colors/fonts/voice/tone/CTA rules | live | `api/_engines/brand.js` |
 | 8 | **Story** | Narrative: structure/hooks/retention/arcs/series/episodes | live | `api/agents/writing.js` + `generate-script.js` |
-| 9 | **Storyboard** | Visual plan: shots/camera/lighting/mood/props/transitions | stub | `api/_engines/storyboard.js` |
-| 10 | **Continuity** | Guard consistency; emit a continuity report before production | stub | `api/_engines/continuity.js` |
-| 11 | **Scene Planner** | Storyboard → production scenes (structured JSON) | stub | `api/_engines/scene-planner.js` |
+| 9 | **Storyboard** | Visual plan: shots/camera/lighting/mood/props/transitions | live | `api/_engines/storyboard.js` |
+| 10 | **Continuity** | Guard consistency; emit a continuity report before production | live | `api/_engines/continuity.js` |
+| 11 | **Scene Planner** | Storyboard → production scenes (structured JSON) | live | `api/_engines/scene-planner.js` |
 | 12 | **Media Router** | Pick the best provider per media request (Runware primary) | live | `src/lib/router/*` + `api/media/engine.js` |
 | 13 | **Asset Manager** | Store + version assets + metadata | live | `api/_blob.js` + `api/knowledge/assets.js` |
 | 14 | **Voice** | Narration/character voices/cloning/dubbing (Qwen / OmniVoice) | live | `api/_providers/voice.js` |
-| 15 | **Music** | Music/ambience/SFX/theme/background (replaceable provider) | stub | `api/_engines/music.js` |
+| 15 | **Music** | Music/ambience/SFX/theme/background (replaceable provider) | live | `api/_engines/music.js` |
 | 16 | **Composition (HyperFrames)** | Timeline/animation/captions/motion/transitions | live | `api/_engines/composition/hyperframes.js` |
 | 17 | **Rendering (FFmpeg)** | Encode/compress/export all formats + watermark + audio mix | live | `api/_render/*` |
 | 18 | **Publishing** | Schedule + publish to YT/IG/TikTok/FB/LinkedIn/X | live | `api/agents/publishing.js` + `api/postiz/*` |
 | 19 | **Analytics** | CTR/watch-time/retention/revenue/views/shares/subs | live | `api/analytics/*` |
 | 20 | **Learning** | Feed winning patterns back into strategy/story/style/direction | live | `api/agents/optimization.js` + router auto-learn |
-| 21 | **Franchise** | Universe→Brand→Franchise→Season→Series→Episode→Storyboard→Scene→Assets | stub | `api/_engines/franchise.js` |
+| 21 | **Franchise** | Universe→Brand→Franchise→Season→Series→Episode→Storyboard→Scene→Assets | live | `api/_engines/franchise.js` |
 
 **Production pipeline (order):**
 `Knowledge → Creative Direction → Strategy → Style → Universe → Characters → Story → Storyboard → Continuity → Scene Planning → Media Router → Voice → Music → Composition (HyperFrames) → Rendering (FFmpeg) → Publishing → Analytics → Learning`
@@ -323,14 +323,14 @@ CRON_MAX_JOBS=                # default 5
 
 ## Current Roadmap
 
-**v2.0 (AI Media OS) — current focus:** the architecture pivot is in. Engine + contract spine is live; OpenMontage is removed. The work now is **implementing the 10 stub engines** behind their already-defined contracts (`api/_engines/registry.js` shows live/stub), in pipeline order leverage:
-1. **▶ Storyboard Engine** — story → shot list (visual plan before production)
-2. **Scene Planner** — storyboard → production scenes (structured JSON)
-3. **Style Engine** — reusable style profiles every project references
-4. Universe + Character + Continuity (recurring-character channels)
-5. Creative Director + Brand
-6. Music Engine (wire a replaceable music provider)
-7. Franchise Engine (full Universe→…→Assets hierarchy)
+**v2.0 (AI Media OS) — status:** pivot complete. Engine + contract spine live, OpenMontage removed, and **all 21 engines are now implemented (live)**. The full pipeline chains end-to-end (story → storyboard → scene_plan → composition manifest), every engine self-validates its output contract, and all degrade gracefully without a text provider.
+
+**Next (depth, not breadth):**
+1. **Frontend** — a v2.0 UI surface for the engine pipeline (a "Studio" view over `GET /api/engines` + `?run=<id>`), and Storyboard/Scene-Plan editors.
+2. **Persistence + schema** — dedicated tables for style_profiles / brands / universes / characters / franchises (currently optionally folded into `workspace_config`); a `projects` table tying a run through the pipeline (resumable projects).
+3. **Wire engines into the autonomous loop** — have agents/cron drive the Knowledge→…→Learning pipeline via the engine registry.
+4. **Music provider** — wire a default (Pixabay `PIXABAY_API_KEY` or a `MUSIC_PROVIDER_URL`).
+5. **Deeper engines** — real reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
 
 **v1 foundation (done, mapped onto engines):** Media Router (Runware+FFmpeg) ✅, Knowledge ✅, Skills ✅, Channel Intelligence ✅, Phase 8 Analytics ✅, 10 agents ✅, auto-learning router ✅, Autonomous Brand Mode monitoring ✅ (remaining: 30-day unattended run + external alert delivery).
 
@@ -348,7 +348,7 @@ CRON_MAX_JOBS=                # default 5
 ## Handoff Notes
 - The build was done largely by Claude Code across several directives; commits are descriptive (`git log`).
 - Subagent **workflows hit the account weekly usage limit** during the Model Router build (resets ~10pm America/Edmonton) — recent work was done solo. Expect parallel subagent fan-out to fail until the limit resets; build solo if so.
-- A `KIMI_API_KEY` was once committed in `CONTENTOS_CLAUDE_HANDOFF.md` (redacted in-file, still in git history) — **rotate it.**
+- A `KIMI_API_KEY` was once committed in `CONTENTOS_CLAUDE_HANDOFF.md`. It has been **purged from ALL git history** (`git filter-repo --replace-text` + force-push, 0 occurrences remain). Still **rotate it at console.moonshot.ai** — the repo is public and the key was exposed for a window (assume compromised).
 - localStorage mode is the default and fully functional for demoing the UI without any keys.
 
 ## Next Recommended Tasks
@@ -362,6 +362,11 @@ CRON_MAX_JOBS=                # default 5
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — All 21 engines implemented (stub → live)
+- **What:** Implemented all 10 remaining stub engines, taking the registry to **21/21 live**: Storyboard (story→shot list, AI + deterministic fallback), Scene Planner (storyboard→scene_plan, pure), Style (name→style_profile, AI + presets), Creative Director (brief→creative_direction), Brand (name→brand kit), Universe (premise→world bible), Character (name→consistency profile), Continuity (diff storyboard vs roster→issues, pure), Music (provider-routed; honest request-spec when no provider — never fabricates audio), Franchise (assemble/scaffold the Universe→…→Assets hierarchy, pure). Each validates its output against its contract and never hard-fails.
+- **Why:** Complete the v2.0 architecture — the platform now owns every engine in the pipeline, end-to-end.
+- **Impact:** Full pipeline chains verified (story → storyboard → scene_plan; continuity flags unknown character/prop + outfit drift; franchise scaffolds Season→Series→Episode). `node --check` all green; `vite build` green; committed + pushed. Engines persist optionally into `workspace_config.*` (no schema change yet — dedicated tables are the next step). Secret hygiene: the leaked KIMI key was purged from ALL git history via `git filter-repo` + force-push (rotate at Moonshot regardless — public exposure window happened).
 
 ### 2026-06-24 — ContentOS v2.0 PIVOT: AI Media OS, OpenMontage removed, 21-engine spine
 - **What:** Re-architected ContentOS from "AI video generator" to **AI Media Operating System**. (1) **Removed OpenMontage entirely** — deleted `openmontage-bridge.js`; new Composition Engine `api/_engines/composition/hyperframes.js` (HyperFrames is THE composition framework, fixed its broken GSAP CDN URL); `generate-composition.js` repointed; `_render/index.js` dropped the `renderWithOpenMontage` stub (FFmpeg is the sole renderer); de-OpenMontaged `_render/composition.js` comments; `voice.js` Kokoro path now `KOKORO_TTS_SCRIPT`-configurable (defaults `~/.kokoro`, no OpenMontage tree); fixed `server.js` broken `api/social.js` import. (2) **Engine + contract spine:** `api/_engines/_base.js` (`defineEngine` universal interface), `api/_contracts/index.js` (15 documented JSON contracts + `validateContract`), `api/_engines/registry.js` (all 21 engines, pipeline order, 11 live/10 stub), 10 new-engine stubs, `api/engines.js` (GET introspection + `?run=<id>`).
