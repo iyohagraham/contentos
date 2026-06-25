@@ -339,8 +339,18 @@ function NewProjectModal({ workspaceId, onClose, onCreated }) {
   const [title, setTitle] = useState('')
   const [brief, setBrief] = useState('')
   const [format, setFormat] = useState('9:16')
+  const [styleProfileId, setStyleProfileId] = useState('')
+  const [universeId, setUniverseId] = useState('')
+  const [styles, setStyles] = useState([])
+  const [universes, setUniverses] = useState([])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    if (!workspaceId) return
+    fetch(`/api/library?workspace_id=${workspaceId}&type=style`).then(r => r.json()).then(d => setStyles(d.items || [])).catch(() => {})
+    fetch(`/api/library?workspace_id=${workspaceId}&type=universe`).then(r => r.json()).then(d => setUniverses(d.items || [])).catch(() => {})
+  }, [workspaceId])
 
   async function create() {
     if (!title.trim()) return
@@ -350,7 +360,7 @@ function NewProjectModal({ workspaceId, onClose, onCreated }) {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspace_id: workspaceId, title, brief, format })
+        body: JSON.stringify({ workspace_id: workspaceId, title, brief, format, style_profile_id: styleProfileId || null, universe_id: universeId || null })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create project')
@@ -388,6 +398,26 @@ function NewProjectModal({ workspaceId, onClose, onCreated }) {
               ))}
             </div>
           </div>
+          {styles.length > 0 && (
+            <div>
+              <label className="text-xs text-slate-400">Style profile (optional)</label>
+              <select value={styleProfileId} onChange={e => setStyleProfileId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 focus:outline-none focus:border-cyan-500">
+                <option value="">None</option>
+                {styles.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+          {universes.length > 0 && (
+            <div>
+              <label className="text-xs text-slate-400">Universe (optional — enables recurring characters)</label>
+              <select value={universeId} onChange={e => setUniverseId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 focus:outline-none focus:border-cyan-500">
+                <option value="">None</option>
+                {universes.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+          )}
           {err && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{err}</p>}
           <button onClick={create} disabled={saving || !title.trim()}
             className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors">

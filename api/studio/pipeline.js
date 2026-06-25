@@ -61,6 +61,17 @@ export default async function handler(req, res) {
   const { data: priors } = await db.from('engine_outputs').select('contract, output').eq('project_id', project.id)
   for (const p of (priors || [])) { const key = CONTRACT_TO_INPUT[p.contract]; if (key) bag[key] = p.output }
 
+  // Attach the project's referenced library blocks (style profile + universe) so
+  // Storyboard/Media Loop inherit the visual language + world.
+  if (project.style_profile_id) {
+    const { data: sp } = await db.from('style_profiles').select('profile').eq('id', project.style_profile_id).maybeSingle()
+    if (sp?.profile) { bag.style_profile = sp.profile; bag.style_profile_id = project.style_profile_id }
+  }
+  if (project.universe_id) {
+    const { data: uni } = await db.from('universes').select('universe').eq('id', project.universe_id).maybeSingle()
+    if (uni?.universe) bag.universe = uni.universe
+  }
+
   // Character roster for the Media Loop (consistency anchors): project's universe
   // characters + any saved characters in the workspace.
   bag.characters = bag.universe?.characters || []

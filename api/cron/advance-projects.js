@@ -54,6 +54,15 @@ export default async function handler(req, res) {
     const bag = { workspace_id: project.workspace_id, project_id: project.id, format: project.format, brief: project.brief, topic: project.brief }
     const { data: priors } = await db.from('engine_outputs').select('contract, output').eq('project_id', project.id)
     for (const p of (priors || [])) { const key = CONTRACT_TO_INPUT[p.contract]; if (key) bag[key] = p.output }
+    // Referenced library blocks (style + universe).
+    if (project.style_profile_id) {
+      const { data: sp } = await db.from('style_profiles').select('profile').eq('id', project.style_profile_id).maybeSingle()
+      if (sp?.profile) { bag.style_profile = sp.profile; bag.style_profile_id = project.style_profile_id }
+    }
+    if (project.universe_id) {
+      const { data: uni } = await db.from('universes').select('universe').eq('id', project.universe_id).maybeSingle()
+      if (uni?.universe) bag.universe = uni.universe
+    }
     // Character roster (consistency) for the Media Loop.
     bag.characters = bag.universe?.characters || []
     const { data: chars } = await db.from('characters').select('character').eq('workspace_id', project.workspace_id).limit(50)
