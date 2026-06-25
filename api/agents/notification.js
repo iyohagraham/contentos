@@ -101,6 +101,11 @@ export default async function notificationAgent({ workspace_id, lookback_hours =
           const rows = fresh.map(a => ({ ...a, workspace_id: ws, status: 'open' }))
           const { data: ins } = await db.from('notifications').insert(rows).select('id')
           created = ins?.length || fresh.length
+          // Best-effort external delivery (no-op until a channel env var is set).
+          try {
+            const { dispatchAlerts } = await import('../monitor/dispatch.js')
+            await dispatchAlerts(fresh, { workspaceId: ws })
+          } catch { /* delivery must never break the agent */ }
         }
       }
 

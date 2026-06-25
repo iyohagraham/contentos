@@ -34,4 +34,5 @@ unattended Brand-Mode run.
 - [x] Branch-from-stage (fork a project + its outputs up to a chosen stage)
 - [x] Reference-image / appearance fields for characters in the Library (face lock)
 - [x] Per-scene Wan video in the Media Loop (opt-in `video:true`; stills default)
-- [ ] External alert delivery (email/push) for Brand Mode — **BLOCKED** (SMTP/push creds)
+- [x] External alert delivery: pluggable dispatcher built + wired (webhook/email);
+      activates on `ALERT_WEBHOOK_URL`/`ALERT_EMAIL_WEBHOOK_URL` (operator provides endpoint)

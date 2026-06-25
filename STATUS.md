@@ -49,6 +49,7 @@ These cannot be completed in-repo; everything around them is built and waiting.
 | Music tracks | PIXABAY_API_KEY / provider | Music Engine (request-spec fallback) |
 | Production deploy | Vercel env + `vercel --prod` | `vercel.json`, build green, `ACTIVATION.md` |
 | KIMI key rotation | operator Moonshot account | key purged from history; rotation is account-side |
+| External alert delivery | a webhook/mailer endpoint (`ALERT_WEBHOOK_URL` or `ALERT_EMAIL_WEBHOOK_URL`) | **dispatcher built + wired** (`api/monitor/dispatch.js`); no-op until a channel env var is set — then alerts deliver with zero code change |
 
 **Resolution path:** follow `ACTIVATION.md` steps 0–3.
 

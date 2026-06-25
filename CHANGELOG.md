@@ -31,6 +31,11 @@
   via Wan) and attaches `video_url`; Composition prefers video clips (`<video>` +
   `video_url` manifest scenes) over stills. Provider-gated + honest (no fabrication).
   Tests: 17 → 19.
+- **External alert dispatcher** — `api/monitor/dispatch.js`: pluggable, provider-
+  agnostic delivery wired into the Notification Agent. Channels (all optional, env-
+  gated, no-op until set): `ALERT_WEBHOOK_URL` (Slack/Discord/custom) +
+  `ALERT_EMAIL_WEBHOOK_URL` (HTTP mailer). Best-effort — never breaks the agent.
+  `.env.example` documents the vars.
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,
