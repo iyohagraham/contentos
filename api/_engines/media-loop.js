@@ -11,12 +11,33 @@
  * still runs but marks scenes `needs_provider` (selected:false from the sub-engines)
  * — nothing is fabricated. The orchestrator treats that as a provider gate.
  *
- * input:  { scene_plan | scenes, style_profile?, workspace_id?, max_scenes? }
+ * CHARACTER CONSISTENCY: pass a `characters[]` roster (CHARACTER contracts). For
+ * any scene whose `metadata.characters[]` names a known character, the loop injects
+ * that character's appearance anchor into the image prompt and — when the character
+ * has a `face.reference_image_url` — routes the image through img2img (seedImage) so
+ * the same face/outfit recurs across scenes instead of drifting.
+ *
+ * input:  { scene_plan | scenes, style_profile?, characters?, workspace_id?, max_scenes? }
  * output: { project_id, format, scenes: [...enriched], generated, needs_provider }
  */
 import { defineEngine } from './_base.js'
 import { ScenePlan, validateContract } from '../_contracts/index.js'
 import { runEngine } from './run.js'
+
+/** Build a name -> character lookup (lowercased) from a roster. */
+function rosterIndex(characters) {
+  const idx = new Map()
+  for (const c of (Array.isArray(characters) ? characters : [])) {
+    if (c?.name) idx.set(String(c.name).toLowerCase().trim(), c)
+  }
+  return idx
+}
+
+/** Resolve the character(s) present in a scene against the roster. */
+function sceneCharacters(scene, idx) {
+  const names = scene.metadata?.characters || scene.characters || []
+  return names.map((n) => idx.get(String(n).toLowerCase().trim())).filter(Boolean)
+}
 
 export default defineEngine({
   id: 'media_loop',
@@ -32,6 +53,7 @@ export default defineEngine({
 
     const style = input.style_profile || null
     const styleHint = style?.visual_language ? `, ${style.visual_language}` : ''
+    const idx = rosterIndex(input.characters)
     const max = Math.min(scenes.length, Number(input.max_scenes) || scenes.length)
 
     let generated = 0
@@ -41,11 +63,32 @@ export default defineEngine({
     for (let i = 0; i < scenes.length; i++) {
       const scene = { ...scenes[i] }
       if (i < max) {
-        // Image for the scene.
-        const prompt = `${scene.voice?.text || scene.metadata?.mood || 'scene'}${styleHint}`.slice(0, 400)
+        // Character consistency: append appearance anchors + pick a reference image.
+        const chars = sceneCharacters(scene, idx)
+        const charAnchor = chars.map((c) => {
+          const ap = c.face?.appearance || ''
+          const outfit = (scene.metadata?.outfit) || (c.outfits || [])[0] || ''
+          return `${c.name}${ap ? ` (${ap})` : ''}${outfit ? ` wearing ${outfit}` : ''}`
+        }).join('; ')
+        const refImage = chars.map((c) => c.face?.reference_image_url).find(Boolean) || null
+        if (chars.length) scene.characters_resolved = chars.map((c) => c.name)
+
+        // Image for the scene (character-anchored).
+        const base = scene.voice?.text || scene.metadata?.mood || 'scene'
+        const prompt = `${base}${charAnchor ? `. Featuring ${charAnchor}` : ''}${styleHint}`.slice(0, 500)
+        // A reference image routes through img2img (seedImage) for true face/outfit
+        // consistency; otherwise a normal text->image generation.
+        const req = refImage
+          ? { type: 'utility', task: 'image_edit', imageUrl: refImage, prompt, strength: 0.65, workspace_id: ctx.workspaceId }
+          : { type: 'image', task: 'scene', prompt, workspace_id: ctx.workspaceId }
         try {
-          const img = await runEngine('media_router', { prompt, task: 'scene', workspace_id: ctx.workspaceId }, { workspaceId: ctx.workspaceId, db: ctx.db })
-          if (img.output?.url) { scene.image_url = img.output.url; scene.image_provider = img.output.provider; generated++ }
+          const img = await runEngine('media_router', req, { workspaceId: ctx.workspaceId, db: ctx.db })
+          if (img.output?.url) {
+            scene.image_url = img.output.url
+            scene.image_provider = img.output.provider
+            if (refImage) scene.character_locked = true
+            generated++
+          }
           else { needsProvider = true; scene.image_status = 'needs_provider' }
         } catch (err) { scene.image_status = `error: ${err.message}` }
 

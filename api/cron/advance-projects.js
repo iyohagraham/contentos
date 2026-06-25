@@ -54,6 +54,10 @@ export default async function handler(req, res) {
     const bag = { workspace_id: project.workspace_id, project_id: project.id, format: project.format, brief: project.brief, topic: project.brief }
     const { data: priors } = await db.from('engine_outputs').select('contract, output').eq('project_id', project.id)
     for (const p of (priors || [])) { const key = CONTRACT_TO_INPUT[p.contract]; if (key) bag[key] = p.output }
+    // Character roster (consistency) for the Media Loop.
+    bag.characters = bag.universe?.characters || []
+    const { data: chars } = await db.from('characters').select('character').eq('workspace_id', project.workspace_id).limit(50)
+    if (chars?.length) bag.characters = [...bag.characters, ...chars.map((c) => c.character)]
 
     try {
       const result = await runEngine(next, bag, { workspaceId: project.workspace_id, db })

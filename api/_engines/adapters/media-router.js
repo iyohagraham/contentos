@@ -38,13 +38,19 @@ export default defineEngine({
     }
 
     // A provider exists → route through the Media Engine.
-    const { produceImage } = await import('../../media/engine.js')
-    const result = await produceImage(prompt, {
-      task: input.task || 'scene',
+    const engine = await import('../../media/engine.js')
+    const wsOpts = {
       priority: input.priority || 'balanced',
       workspaceId: ctx.workspaceId || input.workspace_id || null,
       persist: input.persist !== false
-    })
+    }
+    let result
+    if (input.type === 'utility' && input.task === 'image_edit' && input.imageUrl) {
+      // img2img / character-locked generation (seedImage + strength).
+      result = await engine.editAsset(input.imageUrl, prompt, { ...wsOpts, strength: input.strength ?? 0.65 })
+    } else {
+      result = await engine.produceImage(prompt, { ...wsOpts, task: input.task || 'scene' })
+    }
 
     const asset = {
       ...MediaAsset.blank(),
