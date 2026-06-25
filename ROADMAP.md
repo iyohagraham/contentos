@@ -27,10 +27,10 @@ consistency; continuity auto-fix; per-scene media loop; activation runbook.
 Supabase provision, fund Runware/FAL, deploy Postiz, `vercel --prod`, 30-day
 unattended Brand-Mode run.
 
-## Phase E — Deeper product (future)
-- Stage-output diff/versioning + branch a project from any stage
-- Reference-image upload UI for characters (true face lock)
-- Multi-scene video (Wan) in the Media Loop, not just stills
-- Franchise navigator UI (browse Universe→…→Episode)
-- External alert delivery (email/push) for Brand Mode
-- Cost dashboard from `model_routing_log` + per-project spend
+## Phase E — Deeper product (in progress)
+- [x] Cost dashboard from `model_routing_log` (Studio → Usage)
+- [x] Franchise navigator UI (browse Universe→…→Episode; spawn episode-projects)
+- [ ] Stage-output diff/versioning + branch a project from any stage
+- [ ] Reference-image upload UI for characters (true face lock)
+- [ ] Multi-scene video (Wan) in the Media Loop, not just stills
+- [ ] External alert delivery (email/push) for Brand Mode

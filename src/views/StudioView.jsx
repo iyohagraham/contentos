@@ -13,7 +13,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   Zap, Plus, X as XIcon, Check, Loader2,
-  FileJson, AlertCircle, RefreshCw, Server, Play
+  FileJson, AlertCircle, RefreshCw, Server, Play, Layers, ChevronRight
 } from 'lucide-react'
 
 function StudioView({ workspaceId }) {
@@ -88,7 +88,7 @@ function StudioView({ workspaceId }) {
       </div>
 
       <div className="flex gap-2">
-        {['projects', 'library', 'usage'].map(t => (
+        {['projects', 'library', 'franchises', 'usage'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{t}</button>
         ))}
@@ -98,6 +98,7 @@ function StudioView({ workspaceId }) {
 
       {tab === 'library' && <LibraryPanel workspaceId={workspaceId} />}
       {tab === 'usage' && <UsagePanel workspaceId={workspaceId} />}
+      {tab === 'franchises' && <FranchisesPanel workspaceId={workspaceId} onSpawn={(p) => { setTab('projects'); fetchProjects(); selectProject(p) }} />}
 
       {tab === 'projects' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl">
@@ -530,6 +531,110 @@ function LibraryPanel({ workspaceId }) {
             </div>
             {inspect === it.id && (
               <pre className="mt-2 bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-300 overflow-auto max-h-60">{JSON.stringify(it.data, null, 2)}</pre>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Recursive hierarchy node renderer; episode nodes get a "+ project" spawn button. */
+function HierarchyNode({ node, depth, onSpawn }) {
+  const isEpisode = node.level === 'episode'
+  return (
+    <div style={{ marginLeft: depth * 14 }}>
+      <div className="flex items-center gap-2 py-0.5 text-xs">
+        <span className="text-slate-600 uppercase w-16 flex-shrink-0">{node.level}</span>
+        <span className="text-slate-300">{node.name}</span>
+        {isEpisode && (
+          <button onClick={() => onSpawn(node)} className="ml-2 text-cyan-400 hover:text-cyan-300" title="Create a project for this episode">+ project</button>
+        )}
+      </div>
+      {(node.children || []).map((c) => <HierarchyNode key={c.id} node={c} depth={depth + 1} onSpawn={onSpawn} />)}
+    </div>
+  )
+}
+
+function FranchisesPanel({ workspaceId, onSpawn }) {
+  const [items, setItems] = useState([])
+  const [name, setName] = useState('')
+  const [seasons, setSeasons] = useState(1)
+  const [eps, setEps] = useState(3)
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [open, setOpen] = useState(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => { load() }, [workspaceId])
+
+  async function load() {
+    if (!workspaceId) return
+    setLoading(true); setErr(null)
+    try {
+      const res = await fetch(`/api/franchises?workspace_id=${workspaceId}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Failed to load')
+      setItems(d.franchises || [])
+    } catch (e) { setErr(e.message) }
+    setLoading(false)
+  }
+
+  async function create() {
+    if (!name.trim()) return
+    setCreating(true); setErr(null)
+    try {
+      const res = await fetch('/api/franchises', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, name, op: 'plan', seasons: Number(seasons) || 1, series_per_season: 1, episodes_per_series: Number(eps) || 3 })
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Create failed')
+      setName(''); load()
+    } catch (e) { setErr(e.message) }
+    setCreating(false)
+  }
+
+  async function spawnEpisode(franchise, node) {
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, title: `${franchise.name} — ${node.name}`, brief: `Episode of ${franchise.name}`, franchise_id: franchise.id, universe_id: franchise.universe_id || null })
+      })
+      const d = await res.json()
+      if (res.ok && d.project) onSpawn(d.project)
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+      <h3 className="font-semibold flex items-center gap-2"><Layers className="w-4 h-4 text-cyan-500" />Franchises</h3>
+      <div className="flex flex-wrap gap-2 items-end">
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Franchise name"
+          className="flex-1 min-w-[160px] bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+        <label className="text-xs text-slate-500">Seasons<input type="number" min="1" value={seasons} onChange={e => setSeasons(e.target.value)} className="ml-1 w-14 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm" /></label>
+        <label className="text-xs text-slate-500">Eps/series<input type="number" min="1" value={eps} onChange={e => setEps(e.target.value)} className="ml-1 w-14 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm" /></label>
+        <button onClick={create} disabled={creating || !name.trim()}
+          className="bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
+          {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Scaffold
+        </button>
+      </div>
+
+      {err && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{err}</p>}
+      {loading && <p className="text-slate-500 text-sm">Loading...</p>}
+      {!loading && !items.length && <p className="text-slate-500 text-sm">No franchises yet — scaffold one above to plan a Season → Series → Episode hierarchy.</p>}
+
+      <div className="space-y-2">
+        {items.map(fr => (
+          <div key={fr.id} className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+            <button onClick={() => setOpen(open === fr.id ? null : fr.id)} className="w-full flex items-center justify-between">
+              <span className="font-medium text-sm">{fr.name}</span>
+              <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform ${open === fr.id ? 'rotate-90' : ''}`} />
+            </button>
+            {open === fr.id && fr.hierarchy && (
+              <div className="mt-2 border-t border-slate-800 pt-2">
+                <HierarchyNode node={fr.hierarchy} depth={0} onSpawn={(node) => spawnEpisode(fr, node)} />
+              </div>
             )}
           </div>
         ))}
