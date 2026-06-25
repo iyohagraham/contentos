@@ -25,6 +25,12 @@
   the source's refs + engine_outputs up to a chosen stage (resumes from the next
   stage). StudioView: a branch (git) button on every completed stage. Pure copy,
   no provider calls.
+- **Character face-lock inputs** — Library character form takes an optional
+  `reference_image_url` + `appearance` anchor (feeds the Media Loop img2img path).
+- **Per-scene motion** — Media Loop `video:true` animates each still (image→video
+  via Wan) and attaches `video_url`; Composition prefers video clips (`<video>` +
+  `video_url` manifest scenes) over stills. Provider-gated + honest (no fabrication).
+  Tests: 17 → 19.
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,

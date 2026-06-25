@@ -499,6 +499,8 @@ function LibraryPanel({ workspaceId }) {
   const [type, setType] = useState('style')
   const [items, setItems] = useState([])
   const [name, setName] = useState('')
+  const [refImage, setRefImage] = useState('')
+  const [appearance, setAppearance] = useState('')
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [err, setErr] = useState(null)
@@ -524,13 +526,18 @@ function LibraryPanel({ workspaceId }) {
     if (!name.trim()) return
     setCreating(true); setErr(null)
     try {
+      const body = { workspace_id: workspaceId, type, name }
+      if (type === 'character') {
+        if (refImage.trim()) body.reference_image_url = refImage.trim()
+        if (appearance.trim()) body.appearance = appearance.trim()
+      }
       const res = await fetch('/api/library', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspace_id: workspaceId, type, name })
+        body: JSON.stringify(body)
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Create failed')
-      setName(''); fetchItems()
+      setName(''); setRefImage(''); setAppearance(''); fetchItems()
     } catch (e) { setErr(e.message) }
     setCreating(false)
   }
@@ -551,6 +558,16 @@ function LibraryPanel({ workspaceId }) {
         ))}
       </div>
 
+      {type === 'character' && (
+        <div className="space-y-2">
+          <input value={refImage} onChange={e => setRefImage(e.target.value)}
+            placeholder="Reference image URL (optional — locks the face via img2img across scenes)"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+          <input value={appearance} onChange={e => setAppearance(e.target.value)}
+            placeholder="Appearance anchor (optional — e.g. 'weathered trenchcoat, gray stubble')"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+        </div>
+      )}
       <div className="flex gap-2">
         <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && create()}
           placeholder={cfg.placeholder}

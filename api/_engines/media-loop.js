@@ -88,6 +88,18 @@ export default defineEngine({
             scene.image_provider = img.output.provider
             if (refImage) scene.character_locked = true
             generated++
+
+            // Optional per-scene motion: animate the still (image→video) via Wan.
+            // Provider-gated + honest: skipped (status noted) when no video provider.
+            if (input.video) {
+              try {
+                const { imageToVideo, hasVideoProvider } = await import('../_providers/video.js')
+                if (hasVideoProvider()) {
+                  const clip = await imageToVideo(scene.image_url, { prompt, duration: scene.duration, reference_images: refImage ? [refImage] : [] })
+                  if (clip?.url || clip?.video_url) scene.video_url = clip.url || clip.video_url
+                } else { needsProvider = true; scene.video_status = 'needs_provider' }
+              } catch (err) { scene.video_status = `error: ${err.message}` }
+            }
           }
           else { needsProvider = true; scene.image_status = 'needs_provider' }
         } catch (err) { scene.image_status = `error: ${err.message}` }

@@ -32,6 +32,6 @@ unattended Brand-Mode run.
 - [x] Franchise navigator UI (browse Universe→…→Episode; spawn episode-projects)
 - [x] Stage-output versioning (history on re-run/edit + restore)
 - [x] Branch-from-stage (fork a project + its outputs up to a chosen stage)
-- [ ] Reference-image upload UI for characters (true face lock)
-- [ ] Multi-scene video (Wan) in the Media Loop, not just stills
-- [ ] External alert delivery (email/push) for Brand Mode
+- [x] Reference-image / appearance fields for characters in the Library (face lock)
+- [x] Per-scene Wan video in the Media Loop (opt-in `video:true`; stills default)
+- [ ] External alert delivery (email/push) for Brand Mode — **BLOCKED** (SMTP/push creds)

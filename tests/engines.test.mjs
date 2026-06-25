@@ -137,6 +137,22 @@ test('composition: text fallback still works', async () => {
   assert.ok(r.output.manifest.scenes.length >= 1)
 })
 
+test('composition: video-backed scene → manifest scene has video_url', async () => {
+  const enriched = { format: '9:16', scenes: [
+    { index: 0, duration: 3, voice: { text: 'one' }, image_url: 'https://x/0.jpg', video_url: 'https://x/0.mp4' }
+  ] }
+  const r = await runEngine('composition', { scene_plan: enriched }, { db: null })
+  assert.equal(r.output.manifest.scenes[0].video_url, 'https://x/0.mp4')
+  assert.ok(/<video/.test(r.output.html), 'html has <video>')
+})
+
+test('media_loop video:true without provider is honest (no fabricated video)', async () => {
+  const plan = { format: '9:16', scenes: [{ index: 0, duration: 3, voice: { text: 'x' }, metadata: { characters: [] } }] }
+  const r = await runEngine('media_loop', { scene_plan: plan, video: true }, { db: null })
+  assert.equal(r.output.scenes[0].video_url, undefined)
+  assert.equal(r.output.needs_provider, true)
+})
+
 // ── Provider-less adapters are honest ─────────────────────────────────────────
 test('media_router / voice / publishing return honest request-specs with no provider', async () => {
   const mr = await runEngine('media_router', { prompt: 'a desk' }, { db: null })

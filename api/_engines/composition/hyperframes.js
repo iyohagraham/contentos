@@ -93,7 +93,11 @@ export function createCompositionFromScenes(plan, options = {}) {
 
   scenes.forEach((s, i) => {
     const dur = Number(s.duration) || 4
-    if (s.image_url) {
+    // Prefer a motion clip (Media Loop video) over the still when present.
+    if (s.video_url) {
+      clips.push({ id: `vid-${i}`, type: 'video', start: t, duration: dur, track: 0, src: s.video_url,
+        poster: s.image_url || null, transition: (s.effects || [])[0] || 'cut' })
+    } else if (s.image_url) {
       clips.push({ id: `img-${i}`, type: 'image', start: t, duration: dur, track: 0, src: s.image_url,
         motion: s.motion || 'none', transition: (s.effects || [])[0] || 'cut' })
     }
@@ -119,6 +123,12 @@ export function createCompositionFromScenes(plan, options = {}) {
 /** Render the composition object to HyperFrames HTML. */
 export function generateHyperFramesHTML(comp) {
   const clipsHTML = (comp.clips || []).map((clip) => {
+    if (clip.type === 'video' && clip.src) {
+      return `
+    <div class="clip" data-start="${clip.start}" data-duration="${clip.duration}" data-track-index="${clip.track || 0}">
+      <video src="${clip.src}"${clip.poster ? ` poster="${clip.poster}"` : ''} muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video>
+    </div>`
+    }
     if (clip.type === 'image' && clip.src) {
       return `
     <div class="clip" data-start="${clip.start}" data-duration="${clip.duration}" data-track-index="${clip.track || 0}">
@@ -158,8 +168,9 @@ export function toManifest(comp) {
   // For scene-backed comps, expose image scenes (so the ffmpeg renderer gets
   // image_url + duration per scene) + the collected audio/captions.
   const scenes = comp._sceneBacked
-    ? (comp.clips || []).filter((c) => c.type === 'image').map((c) => ({
-        id: c.id, start: c.start, duration: c.duration, image_url: c.src,
+    ? (comp.clips || []).filter((c) => c.type === 'image' || c.type === 'video').map((c) => ({
+        id: c.id, start: c.start, duration: c.duration,
+        ...(c.type === 'video' ? { video_url: c.src, image_url: c.poster || null } : { image_url: c.src }),
         motion: c.motion, transition: c.transition
       }))
     : (comp.clips || []).map((c) => ({ id: c.id, start: c.start, duration: c.duration, type: c.type, content: c.content, style: c.style }))
