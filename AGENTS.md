@@ -284,7 +284,7 @@ Built and committed (localStorage mode works today; cloud features activate once
 3. `vercel --prod` from the repo root.
 4. Smoke-test: `/api/health`, then the media/skill/agent endpoints.
 
-Crons (in `vercel.json`): `process-scheduled` + `run-agents` every 5 min; `research-scan` Sun 08:00 UTC; `learning-loop` Sun 22:00 UTC.
+Crons (in `vercel.json`): `process-scheduled` + `run-agents` + **`advance-projects`** every 5 min; `research-scan` Sun 08:00 UTC; `learning-loop` Sun 22:00 UTC. (`advance-projects` autonomously runs the next engine-pipeline stage for `draft`/`running` `media_projects` with a brief; `CRON_MAX_PROJECTS` caps per-tick.)
 
 ## Environment Variables
 
@@ -330,11 +330,13 @@ CRON_MAX_JOBS=                # default 5
 
 **Done (v2.0 depth):** ✅ **Studio** frontend (`src/views/StudioView.jsx` — project list, New-Project modal, live pipeline from `GET /api/engines`, per-engine Run/Re-run + JSON contract inspection). ✅ **Persistence + schema** — `media_projects` (resumable runs) + `engine_outputs` + `style_profiles/brands/universes/characters/franchises` tables. ✅ **Resumable pipeline runner** — `api/studio/run.js` auto-wires each engine's inputs from prior stage outputs by contract name.
 
+**Done:** ✅ **Autonomous full-pipeline orchestrator** (`api/studio/pipeline.js`) + **cron** (`api/cron/advance-projects.js`, every 5 min) — projects run themselves stage-by-stage toward complete/blocked. ✅ **Engine adapters** (`api/_engines/adapters/`) — knowledge/story/media_router/voice/rendering wrapped into the engine interface (16 engines now invocable); existing-endpoint stages are runnable in Studio. ✅ **Studio "Run full pipeline"** button.
+
 **Next (depth, not breadth):**
-1. **Wire engines into the autonomous loop** — have agents/cron drive the Knowledge→…→Learning pipeline via the engine registry + `engine_outputs` (a "run whole project" orchestrator + a cron that advances `running` projects).
-2. **Connect live engines into the pipeline UI** — Knowledge/Story/Media Router/Voice/Rendering/Publishing are served by existing endpoints; surface them as runnable stages in Studio (currently marked "existing").
-3. **Storyboard / Scene-Plan editors** — let the operator edit a stage's contract JSON before running the next.
-4. **Music provider** — wire a default (`PIXABAY_API_KEY` or `MUSIC_PROVIDER_URL`).
+1. **Storyboard / Scene-Plan editors** — let the operator edit a stage's contract JSON before running the next stage.
+2. **Wire Media/Voice/Rendering into a full render** — once providers are funded, run scene_plan → per-scene media_router images → voice → composition → rendering to a real MP4 (the orchestrator pauses at the provider gate today).
+3. **Music provider** — wire a default (`PIXABAY_API_KEY` or `MUSIC_PROVIDER_URL`).
+4. **Publishing stage** — map the Publishing engine into the pipeline (Postiz) once a render exists.
 5. **Deeper engines** — reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
 
 **v1 foundation (done, mapped onto engines):** Media Router (Runware+FFmpeg) ✅, Knowledge ✅, Skills ✅, Channel Intelligence ✅, Phase 8 Analytics ✅, 10 agents ✅, auto-learning router ✅, Autonomous Brand Mode monitoring ✅ (remaining: 30-day unattended run + external alert delivery).
@@ -367,6 +369,11 @@ CRON_MAX_JOBS=                # default 5
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Autonomous full-pipeline orchestrator + cron + engine adapters
+- **What:** (1) **Engine adapters** (`api/_engines/adapters/{knowledge,story,media-router,voice,rendering}.js`) wrap existing implementations into the engine interface, registered in `api/_engines/run.js` → **16 engines now invocable** (was 11). knowledge=RAG+fact-synth; story=self-contained `textGenerateJSON` (the heavy Writing Agent stays for the job loop); media_router/voice/rendering wrap the real providers but return honest `selected:false` request-specs when no provider/key (never fabricate). (2) **Orchestrator** `api/studio/pipeline.js` runs the ordered creative pipeline for a project (knowledge→creative_director→story→storyboard→continuity→scene_planner→composition), auto-wiring each stage from prior `engine_outputs` by contract, persisting, advancing to complete/blocked/failed; pauses at a provider gate. (3) **Cron** `api/cron/advance-projects.js` (every 5 min, in `vercel.json`) advances draft/running projects one stage/tick → production runs itself. (4) StudioView "Run full pipeline" button + existing-engine stages now runnable.
+- **Why:** Close the v2.0 autonomy loop — an operator creates a project with a brief and the engine pipeline produces it without manual stage-stepping.
+- **Impact:** Full creative pipeline verified end-to-end via `runEngine` (knowledge→scene_planner all `complete`, provider-free fallbacks honest). Media/voice/rendering stages activate when providers are funded (orchestrator currently `blocked`s there by design). `node --check` all green; `vite build` green; `vercel.json` valid.
 
 ### 2026-06-24 — v2.0 Studio: resumable projects + pipeline UI (SCHEMA CHANGE)
 - **What:** Built the AI Media OS pipeline persistence + UI. **Schema (decision recorded here per the rule):** added `media_projects` (resumable run: `status`/`current_stage`/`stages_done[]`), `engine_outputs` (`UNIQUE(project_id, engine_id)` — each stage's contract JSON, re-runnable), and reusable `style_profiles`/`brands`/`universes`/`characters`/`franchises` tables (full RLS + indexes + `updated_at` triggers, matching conventions). **API:** `api/_engines/run.js` (canonical engine invoker), `api/projects.js` (CRUD), `api/studio/run.js` (resumable orchestrator — auto-wires each engine's inputs from prior `engine_outputs` by contract name, persists, advances stage). Refactored `api/engines.js` onto the invoker and **fixed a latent bug** (its `../_engines` imports were wrong → would have thrown at runtime; now `./_engines`). **Frontend:** `src/views/StudioView.jsx` + `AI Media OS > Studio` nav (lazy chunk).
