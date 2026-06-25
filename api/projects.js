@@ -11,6 +11,15 @@
 import { getServerSupabase, coerceWorkspaceId } from './_db.js'
 
 export default async function handler(req, res) {
+  try {
+    return await route(req, res)
+  } catch (err) {
+    console.error('[projects]', err)
+    return res.status(500).json({ error: err.message })
+  }
+}
+
+async function route(req, res) {
   const db = getServerSupabase()
 
   if (req.method === 'GET') {

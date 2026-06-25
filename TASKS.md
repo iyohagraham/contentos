@@ -13,17 +13,15 @@
       contract-validate, pipeline chaining, continuity flag+fix, media-loop honesty).
       Wired `npm test`. **17/17 pass.**
 - [x] T4. `package.json` scripts: `test`, `check` (scripts/check.mjs), `smoke`, `verify`.
-- [ ] T5. Repo hygiene sweep:
-      - mark/relocate stale root docs (CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF) as
-        archived (AGENTS.md already supersedes them)
-      - prune any remaining dead code / unused exports
-      - add missing JSDoc on new v2.0 endpoints
-- [ ] T6. `run-whole-project` polish: ensure orchestrator returns per-stage progress
-      the UI can show; add a "running…" state.
-- [ ] T7. Structured logging: consistent `[area]` prefixes + error shapes across
-      new endpoints (projects, studio, library, franchises, cron/advance-projects).
-- [ ] T8. Cost/usage: a read-only `/api/router/scores` is live; add a tiny
-      `/api/usage` summarizing `model_routing_log` spend (when DB live; no-db safe).
+- [x] T5. Repo hygiene sweep: archived stale root docs to `docs/archive/`; deleted
+      dead `src/lib/api.js`; updated AGENTS.md refs.
+- [ ] T6. `run-whole-project` polish: orchestrator already returns `ran[]` + status;
+      surface live per-stage progress in the UI (PipelineView shows the result banner).
+      Remaining: a polling "running…" state for long runs.
+- [x] T7. Structured logging: top-level try/catch + `[area]` error logging added to
+      projects/library/franchises/usage handlers (studio/cron already logged).
+- [x] T8. `/api/usage` — read-only spend/usage summary from `model_routing_log`
+      (totals + byProvider/byModel/byTask; no-db safe).
 
 ## Blocked (do NOT attempt — credentials/accounts)
 

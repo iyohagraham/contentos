@@ -22,6 +22,15 @@ const TYPES = {
 }
 
 export default async function handler(req, res) {
+  try {
+    return await route(req, res)
+  } catch (err) {
+    console.error('[library]', err)
+    return res.status(500).json({ error: err.message })
+  }
+}
+
+async function route(req, res) {
   const db = getServerSupabase()
   const type = (req.method === 'DELETE' ? req.query.type : (req.method === 'GET' ? req.query.type : req.body?.type))
   const cfg = TYPES[type]

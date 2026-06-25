@@ -9,6 +9,8 @@
 ## [2.2.0] — 2026-06-24 (Quality / DX — tests, smoke, tracking docs)
 
 ### Added
+- **`GET /api/usage`** — read-only spend/usage summary from `model_routing_log`
+  (totals + byProvider/byModel/byTask; success rate + avg latency; no-db safe).
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,
@@ -23,6 +25,9 @@
 
 ### Fixed
 - package.json version 1.0.0 → 2.0.0 + accurate description.
+- Deleted dead `src/lib/api.js` (0 importers); archived stale root docs to `docs/archive/`.
+- Hardened error handling: top-level try/catch + `[area]` logging on
+  projects/library/franchises/usage handlers.
 
 ### Verified
 - `npm run check` → 108 files, 0 failed. `npm test` → 17/17 passed. `vite build` green.
