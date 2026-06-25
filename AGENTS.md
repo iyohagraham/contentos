@@ -58,7 +58,7 @@ React 18 + Vite SPA (src/)                Vercel Serverless Functions (api/*.js,
 
 ## System Architecture — The 21 Engines
 
-Single-responsibility engines, communicating via JSON contracts. **21/21 live** — every engine takes a JSON contract in, returns a validated contract out, self-checks its output, and never hard-fails (AI-first with deterministic fallback where applicable). The pipeline order IS the production pipeline.
+Single-responsibility engines, communicating via JSON contracts. **22 engines, all live** (the 21 vision engines + a Media Loop bridge), **18 invocable** through `api/_engines/run.js`. Every engine takes a JSON contract in, returns a validated contract out, self-checks its output, and never hard-fails (AI-first with deterministic fallback where applicable). The pipeline order IS the production pipeline. The full chain is built end-to-end: `knowledge → creative_director → story → storyboard → continuity → scene_planner → media_loop → composition → rendering → publishing` (media/render/publish activate when providers/Postiz are configured; the orchestrator pauses at the provider gate).
 
 | # | Engine | Responsibility | Status | Implementation |
 |---|---|---|---|---|
@@ -368,6 +368,11 @@ CRON_MAX_JOBS=                # default 5
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Per-scene Media Loop + image-backed Composition (end-to-end render)
+- **What:** (1) **Media Loop** (`api/_engines/media-loop.js`) — iterates `scene_plan.scenes[]`, calling `media_router` per scene (image, prompted from the scene description + style visual_language) and `voice` per narration, attaching `image_url`/`audio_url` back onto each scene → an **enriched scene_plan**. Provider-agnostic + honest: marks scenes `needs_provider` + returns `selected:false` when no provider (orchestrator gate; nothing fabricated). (2) **Composition** gained `createCompositionFromScenes()` — image clips (track 0) + caption overlays (track 1) per scene, collected audio/captions, real dims; `generateHyperFramesHTML` renders `<img>` layers; `toManifest` emits `image_url` scenes + audio tracks + captions for the ffmpeg renderer. Text-only path preserved as fallback. (3) Pipeline: `media_loop` registered invocable (**18 invocable / 22 engines**) + inserted into orchestrator + cron: `scene_planner → media_loop → composition → rendering → publishing`; registry orders renumbered; `render_result` added to the forward-feed map so Publishing receives the render.
+- **Why:** This is the missing bridge from a text scene_plan to a real (image + voice) video — the last structural piece before a funded end-to-end render+publish.
+- **Impact:** The complete pipeline is now built end-to-end. Verified: media_loop honest no-provider path; image-backed composition manifest carries `image_url` scenes + audio + captions + correct dims (and `<img>` HTML); text fallback intact. With Runware/FAL/Postiz configured, a project brief now flows all the way to a published MP4. `node --check` all green; `vite build` green.
 
 ### 2026-06-24 — Publishing engine + Studio stage-output JSON editor
 - **What:** (1) **Publishing adapter** (`api/_engines/adapters/publishing.js`) — final pipeline stage: takes a RENDER_RESULT + caption + channels → publishes/schedules via Postiz (resolves all enabled channels when none given); honest `selected:false` request-spec when Postiz unconfigured. Registered invocable → **17 engines invocable**. (2) **Stage editor**: `api/studio/run.js` PATCH saves an edited stage output to `engine_outputs` (status `edited`) without re-running; StudioView's per-stage inspector is now an editable JSON textarea with "Save edits" (validates → PATCH → refresh). Edit a contract, save, re-run downstream.
