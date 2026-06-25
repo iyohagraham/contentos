@@ -275,6 +275,8 @@ Built and committed (localStorage mode works today; cloud features activate once
 
 ## Deployment Instructions
 
+> **Go-live runbook:** see **`ACTIVATION.md`** for the exact ordered steps (rotate key → provision Supabase → env → deploy + fund providers → smoke-test). `.env.example` lists every var the code reads.
+
 **Platform:** Vercel (project `contentos`, already linked: `prj_9IVJ7hBMPkUPudAkP2DKuy3od4No`). Account `iyohagraham-8983`.
 
 > ⚠️ `git push` does NOT auto-deploy. Production ships via the CLI only.
