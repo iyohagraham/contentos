@@ -369,6 +369,11 @@ CRON_MAX_JOBS=                # default 5
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
 
+### 2026-06-24 — Continuity auto-fix (suggestions + apply mode)
+- **What:** The Continuity engine now (a) attaches a concrete `fix` suggestion to every issue (unknown_character/prop/location → "add to universe or rename/remove"; outfit_drift → "pin to first-seen outfit or add a wardrobe-change beat"), and (b) with `apply:true` returns a corrected `fixed` storyboard/scene_plan — outfit drift is auto-resolved by pinning each character to its first-seen (canonical) outfit across later shots (`applied_fixes` count). Unknown entities are reported, not silently deleted (safe). Works on both storyboard `shots[]` and scene_plan `scenes[].metadata`.
+- **Why:** Flagging issues isn't enough for autonomy — the pipeline needs a safe automatic correction for the most common drift (wardrobe), plus actionable guidance for the rest.
+- **Impact:** Continuity is now corrective, not just diagnostic. Verified: drift detected + `fix` text present + `apply` pins shot 2 outfit back to "trenchcoat". Pure/deterministic. `node --check` + `vite build` green.
+
 ### 2026-06-24 — Character reference-image consistency (recurring characters)
 - **What:** The Media Loop now keeps recurring characters visually identical across scenes. It accepts a `characters[]` roster (CHARACTER contracts); for each scene it resolves the names in `scene.metadata.characters[]` against the roster and (a) injects each character's `face.appearance` anchor + outfit into the image prompt, (b) when a character has `face.reference_image_url`, routes the image through **img2img** (`seedImage` + strength 0.65) so the same face/outfit recurs instead of drifting (scene marked `character_locked`). The Media Router adapter gained the `image_edit`/img2img path (→ `engine.editAsset`). The orchestrator + cron build the roster into the input bag (universe characters + saved `characters` rows) so consistency is automatic.
 - **Why:** Recurring-character channels (a core v2.0 use case — Universe/Character engines) need the same character to look the same every episode; text prompts alone drift.
