@@ -26,7 +26,7 @@ export const ENGINES = [
   {
     id: 'creative_director', name: 'Creative Director Engine', order: 2,
     responsibility: 'Decide what the audience should feel: tone, narrative, energy, pacing, purpose.',
-    status: 'stub', impl: 'api/_engines/creative-director.js', inputs: ['knowledge'], outputs: ['creative_direction']
+    status: 'live', impl: 'api/_engines/creative-director.js', inputs: ['knowledge'], outputs: ['creative_direction']
   },
   {
     id: 'strategy', name: 'Strategy Engine', order: 3,
@@ -36,22 +36,22 @@ export const ENGINES = [
   {
     id: 'style', name: 'Style Engine', order: 4,
     responsibility: 'Create reusable style profiles (fonts/colors/camera/rhythm/captions/visual language).',
-    status: 'stub', impl: 'api/_engines/style.js', outputs: ['style_profile']
+    status: 'live', impl: 'api/_engines/style.js', outputs: ['style_profile']
   },
   {
     id: 'universe', name: 'Universe Engine', order: 5,
     responsibility: 'Maintain complete worlds: characters, locations, props, rules, lore, timelines.',
-    status: 'stub', impl: 'api/_engines/universe.js', outputs: ['universe']
+    status: 'live', impl: 'api/_engines/universe.js', outputs: ['universe']
   },
   {
     id: 'character', name: 'Character Engine', order: 6,
     responsibility: 'Keep characters consistent: faces, voices, expressions, outfits, bio, poses.',
-    status: 'stub', impl: 'api/_engines/character.js', inputs: ['universe'], outputs: ['character']
+    status: 'live', impl: 'api/_engines/character.js', inputs: ['universe'], outputs: ['character']
   },
   {
     id: 'brand', name: 'Brand Engine', order: 0,
     responsibility: 'Hold business identity: logo, colors, fonts, voice, tone, CTA + marketing rules.',
-    status: 'stub', impl: 'api/_engines/brand.js', outputs: ['brand']
+    status: 'live', impl: 'api/_engines/brand.js', outputs: ['brand']
   },
   {
     id: 'story', name: 'Story Engine', order: 7,
@@ -61,17 +61,17 @@ export const ENGINES = [
   {
     id: 'storyboard', name: 'Storyboard Engine', order: 8,
     responsibility: 'Turn a story into a visual plan: shots, camera, lighting, mood, props, transitions.',
-    status: 'stub', impl: 'api/_engines/storyboard.js', inputs: ['story', 'style_profile'], outputs: ['storyboard']
+    status: 'live', impl: 'api/_engines/storyboard.js', inputs: ['story', 'style_profile'], outputs: ['storyboard']
   },
   {
     id: 'continuity', name: 'Continuity Engine', order: 9,
     responsibility: 'Guard consistency across characters, outfits, locations, props, lighting, timeline.',
-    status: 'stub', impl: 'api/_engines/continuity.js', inputs: ['storyboard', 'universe', 'character'], outputs: ['continuity_report']
+    status: 'live', impl: 'api/_engines/continuity.js', inputs: ['storyboard', 'universe', 'character'], outputs: ['continuity_report']
   },
   {
     id: 'scene_planner', name: 'Scene Planner', order: 10,
     responsibility: 'Break the storyboard into production scenes with structured JSON metadata.',
-    status: 'stub', impl: 'api/_engines/scene-planner.js', inputs: ['storyboard'], outputs: ['scene_plan']
+    status: 'live', impl: 'api/_engines/scene-planner.js', inputs: ['storyboard'], outputs: ['scene_plan']
   },
   {
     id: 'media_router', name: 'Media Router', order: 11,
@@ -91,7 +91,7 @@ export const ENGINES = [
   {
     id: 'music', name: 'Music Engine', order: 13,
     responsibility: 'Music, ambience, SFX, audio branding, theme + background music (router-provided).',
-    status: 'stub', impl: 'api/_engines/music.js', outputs: ['media_asset']
+    status: 'live', impl: 'api/_engines/music.js', outputs: ['media_asset']
   },
   {
     id: 'composition', name: 'Composition Engine (HyperFrames)', order: 14,
@@ -121,7 +121,7 @@ export const ENGINES = [
   {
     id: 'franchise', name: 'Franchise Engine', order: 0,
     responsibility: 'Top-level hierarchy: Universe → Brand → Franchise → Season → Series → Episode → ...',
-    status: 'stub', impl: 'api/_engines/franchise.js', outputs: []
+    status: 'live', impl: 'api/_engines/franchise.js', outputs: []
   }
 ]
 
