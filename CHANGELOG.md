@@ -11,6 +11,8 @@
 ### Added
 - **`GET /api/usage`** — read-only spend/usage summary from `model_routing_log`
   (totals + byProvider/byModel/byTask; success rate + avg latency; no-db safe).
+- **Studio → Usage tab** — cost dashboard over `/api/usage` (total spend, calls,
+  success rate + per provider/model/task breakdowns, period selector).
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,

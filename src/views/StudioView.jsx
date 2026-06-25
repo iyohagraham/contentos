@@ -88,7 +88,7 @@ function StudioView({ workspaceId }) {
       </div>
 
       <div className="flex gap-2">
-        {['projects', 'library'].map(t => (
+        {['projects', 'library', 'usage'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{t}</button>
         ))}
@@ -97,6 +97,7 @@ function StudioView({ workspaceId }) {
       {error && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{error}</p>}
 
       {tab === 'library' && <LibraryPanel workspaceId={workspaceId} />}
+      {tab === 'usage' && <UsagePanel workspaceId={workspaceId} />}
 
       {tab === 'projects' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl">
@@ -533,6 +534,75 @@ function LibraryPanel({ workspaceId }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function UsagePanel({ workspaceId }) {
+  const [data, setData] = useState(null)
+  const [period, setPeriod] = useState('30d')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => { load() }, [period, workspaceId])
+
+  async function load() {
+    if (!workspaceId) return
+    setLoading(true); setErr(null)
+    try {
+      const res = await fetch(`/api/usage?workspace_id=${workspaceId}&period=${period}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Failed to load usage')
+      setData(d)
+    } catch (e) { setErr(e.message) }
+    setLoading(false)
+  }
+
+  const Table = ({ title, rows }) => (
+    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+      <p className="text-xs text-slate-500 font-semibold mb-2">{title}</p>
+      {(!rows || !rows.length) && <p className="text-xs text-slate-600">No data.</p>}
+      {rows?.map((r, i) => (
+        <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-800/50 last:border-0">
+          <span className="text-slate-300 truncate flex-1">{r.key}</span>
+          <span className="text-slate-500 w-16 text-right">{r.calls} calls</span>
+          <span className="text-green-400 w-20 text-right">${(r.cost_usd || 0).toFixed(4)}</span>
+          <span className="text-slate-500 w-16 text-right">{(r.success_rate * 100).toFixed(0)}%</span>
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold flex items-center gap-2"><Server className="w-4 h-4 text-cyan-500" />Model Router Usage</h3>
+        <div className="flex gap-2 items-center">
+          {['7d', '30d', '90d'].map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={`px-3 py-1 rounded text-xs ${period === p ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
+          ))}
+          <button onClick={load} className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-700 rounded"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
+        </div>
+      </div>
+
+      {err && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{err}</p>}
+      {data?.mode === 'no-db' && <p className="text-amber-400 text-sm">Supabase not provisioned — usage logging is inert. (See ACTIVATION.md.)</p>}
+
+      {data && data.mode !== 'no-db' && (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-slate-950 rounded-lg p-3"><p className="text-xs text-slate-500">Total spend</p><p className="text-lg font-bold text-green-400">${(data.totals?.cost_usd || 0).toFixed(4)}</p></div>
+            <div className="bg-slate-950 rounded-lg p-3"><p className="text-xs text-slate-500">Calls</p><p className="text-lg font-bold">{data.totals?.calls || 0}</p></div>
+            <div className="bg-slate-950 rounded-lg p-3"><p className="text-xs text-slate-500">Success rate</p><p className="text-lg font-bold">{((data.totals?.success_rate || 0) * 100).toFixed(0)}%</p></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Table title="By provider" rows={data.byProvider} />
+            <Table title="By model" rows={data.byModel} />
+            <Table title="By task" rows={data.byTask} />
+          </div>
+        </>
+      )}
     </div>
   )
 }
