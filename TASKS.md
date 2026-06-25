@@ -7,13 +7,12 @@
 ## Now (Phase C — quality / DX, all unblocked)
 
 - [x] T1. Tracking docs: STATUS.md, ROADMAP.md, TASKS.md
-- [ ] T2. `scripts/smoke.mjs` — post-deploy smoke test (health, engines, create+run a
+- [x] T2. `scripts/smoke.mjs` — post-deploy smoke test (health, engines, create+run a
       throwaway project, assert stages). Pure Node, no deps.
-- [ ] T3. Test harness: `tests/*.mjs` assert-based, no framework — engines run +
-      contract-validate, pipeline chaining, continuity flags+fix, media-loop no-provider
-      honesty. Wire `npm test`.
-- [ ] T4. `package.json` scripts: `test`, `check` (node --check all api), `lint`
-      (lightweight).
+- [x] T3. Test harness: `tests/engines.test.mjs` — 17 assert tests (engines run +
+      contract-validate, pipeline chaining, continuity flag+fix, media-loop honesty).
+      Wired `npm test`. **17/17 pass.**
+- [x] T4. `package.json` scripts: `test`, `check` (scripts/check.mjs), `smoke`, `verify`.
 - [ ] T5. Repo hygiene sweep:
       - mark/relocate stale root docs (CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF) as
         archived (AGENTS.md already supersedes them)

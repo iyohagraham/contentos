@@ -1,13 +1,17 @@
 {
   "name": "contentos",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Multi-Platform Video Content Engine for faceless channels",
+  "description": "ContentOS — an AI Media Operating System (22 engines, JSON contracts, autonomous pipeline)",
   "scripts": {
     "dev": "concurrently \"node server.js\" \"vite\"",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server.js"
+    "server": "node server.js",
+    "test": "node tests/engines.test.mjs",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "verify": "npm run check && npm test && npm run build"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

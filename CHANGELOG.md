@@ -1,6 +1,31 @@
 # ContentOS Changelog
 
+> Note: ContentOS v2.0 is the **AI Media OS** architecture (22 engines + JSON
+> contracts, OpenMontage removed). The dated **Agent Memory** log in AGENTS.md is
+> the most granular history; this file summarizes by release.
+
 ---
+
+## [2.2.0] — 2026-06-24 (Quality / DX — tests, smoke, tracking docs)
+
+### Added
+- **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
+  no network): registry integrity, every engine runs + self-validates its contract,
+  continuity flag+fix, media-loop provider honesty + character resolution,
+  image-backed composition manifest, franchise hierarchy, full creative chain.
+- **`scripts/smoke.mjs`** — post-deploy smoke test against a live BASE url (health,
+  engines stats, engine invoke, and a throwaway project end-to-end when DB is live;
+  soft-SKIPs DB-gated checks so it's meaningful pre- and post-activation).
+- **`scripts/check.mjs`** — cross-platform `node --check` over all `api/**/*.js`.
+- **package.json scripts:** `test`, `check`, `smoke`, `verify` (check+test+build).
+- **Tracking docs:** STATUS.md, ROADMAP.md, TASKS.md (autonomous-dev tracking).
+- **ACTIVATION.md** + rewritten **.env.example** (accurate var set; Runware primary).
+
+### Fixed
+- package.json version 1.0.0 → 2.0.0 + accurate description.
+
+### Verified
+- `npm run check` → 108 files, 0 failed. `npm test` → 17/17 passed. `vite build` green.
 
 ## [2.1.0] — 2026-06-24 (Model Router + Media Engine + Skill System)
 
