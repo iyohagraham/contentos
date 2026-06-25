@@ -23,7 +23,9 @@ once external accounts are provisioned (see `ACTIVATION.md`).
 
 ## In Progress
 
-- Test harness + smoke script + repo hygiene (this autonomous session).
+- ✅ Phase C (quality/DX) complete: test harness (17/17), smoke + check scripts,
+  `npm verify`, repo hygiene (dead code removed, stale docs archived), `/api/usage`,
+  hardened error logging, run-whole-project banner. Now working Phase E backlog.
 
 ## Done (recent)
 

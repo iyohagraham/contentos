@@ -15,9 +15,9 @@
 - [x] T4. `package.json` scripts: `test`, `check` (scripts/check.mjs), `smoke`, `verify`.
 - [x] T5. Repo hygiene sweep: archived stale root docs to `docs/archive/`; deleted
       dead `src/lib/api.js`; updated AGENTS.md refs.
-- [ ] T6. `run-whole-project` polish: orchestrator already returns `ran[]` + status;
-      surface live per-stage progress in the UI (PipelineView shows the result banner).
-      Remaining: a polling "running…" state for long runs.
+- [x] T6. `run-whole-project` polish: PipelineView result banner now lists each
+      ran stage with status + duration (green=complete, amber=blocked). (Orchestrator
+      is synchronous; a future async/polling mode is in Phase E backlog.)
 - [x] T7. Structured logging: top-level try/catch + `[area]` error logging added to
       projects/library/franchises/usage handlers (studio/cron already logged).
 - [x] T8. `/api/usage` — read-only spend/usage summary from `model_routing_log`

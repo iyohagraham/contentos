@@ -274,9 +274,20 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
       </div>
 
       {pipelineResult && (
-        <div className="text-xs text-slate-400 bg-slate-950 border border-slate-800 rounded-lg p-3">
-          Ran {pipelineResult.ran?.length || 0} stages → <span className="capitalize text-slate-200">{pipelineResult.status}</span>
-          {pipelineResult.stopped_at && <span className="text-amber-400"> (paused at {pipelineResult.stopped_at} — needs a provider)</span>}
+        <div className="text-xs text-slate-400 bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
+          <div>
+            Ran {pipelineResult.ran?.length || 0} stages → <span className="capitalize text-slate-200">{pipelineResult.status}</span>
+            {pipelineResult.stopped_at && <span className="text-amber-400"> (paused at {pipelineResult.stopped_at} — needs a provider)</span>}
+          </div>
+          {pipelineResult.ran?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {pipelineResult.ran.map((s, i) => (
+                <span key={i} className={`px-2 py-0.5 rounded border ${s.status === 'complete' ? 'border-green-500/30 text-green-400 bg-green-500/5' : 'border-amber-500/30 text-amber-400 bg-amber-500/5'}`}>
+                  {s.engine} · {s.durationMs}ms
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
