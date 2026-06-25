@@ -24,6 +24,7 @@ function StudioView({ workspaceId }) {
   const [error, setError] = useState(null)
   const [showNewProject, setShowNewProject] = useState(false)
   const [architecture, setArchitecture] = useState({ pipeline: [], engines: [], stats: {} })
+  const [tab, setTab] = useState('projects')
 
   useEffect(() => {
     fetchProjects()
@@ -78,46 +79,58 @@ function StudioView({ workspaceId }) {
           <h2 className="text-xl font-bold flex items-center gap-2"><Zap className="w-6 h-6 text-cyan-500" />Studio</h2>
           <p className="text-sm text-slate-400 mt-1">AI Media OS — run the v2.0 engine pipeline for a project.</p>
         </div>
-        <button onClick={() => setShowNewProject(true)}
-          className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors">
-          <Plus className="w-4 h-4" />New Project
-        </button>
+        {tab === 'projects' && (
+          <button onClick={() => setShowNewProject(true)}
+            className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors">
+            <Plus className="w-4 h-4" />New Project
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        {['projects', 'library'].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{t}</button>
+        ))}
       </div>
 
       {error && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{error}</p>}
 
-      {/* Project List */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="font-semibold">Projects</h3>
-          <button onClick={fetchProjects} className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-700 rounded"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
-        </div>
-        <div className="p-4">
-          {loading && <p className="text-slate-500">Loading projects...</p>}
-          {!loading && !projects.length && <p className="text-slate-500">No projects yet. Click "New Project" to start.</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {projects.map(p => (
-              <button key={p.id} onClick={() => selectProject(p)}
-                className={`p-3 rounded-lg text-left border transition-colors ${selectedProject?.id === p.id ? 'bg-slate-800 border-cyan-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                <p className="font-medium truncate">{p.title}</p>
-                <p className="text-xs text-slate-400 truncate">{p.brief || 'No brief'}</p>
-                <div className="text-xs text-slate-500 mt-2 flex items-center gap-4">
-                  <span>{p.format}</span>
-                  <span className="capitalize">{p.status}</span>
-                  <span className="capitalize">{p.current_stage || 'Not started'}</span>
-                </div>
-              </button>
-            ))}
+      {tab === 'library' && <LibraryPanel workspaceId={workspaceId} />}
+
+      {tab === 'projects' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h3 className="font-semibold">Projects</h3>
+            <button onClick={fetchProjects} className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-700 rounded"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
+          </div>
+          <div className="p-4">
+            {loading && <p className="text-slate-500">Loading projects...</p>}
+            {!loading && !projects.length && <p className="text-slate-500">No projects yet. Click "New Project" to start.</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {projects.map(p => (
+                <button key={p.id} onClick={() => selectProject(p)}
+                  className={`p-3 rounded-lg text-left border transition-colors ${selectedProject?.id === p.id ? 'bg-slate-800 border-cyan-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
+                  <p className="font-medium truncate">{p.title}</p>
+                  <p className="text-xs text-slate-400 truncate">{p.brief || 'No brief'}</p>
+                  <div className="text-xs text-slate-500 mt-2 flex items-center gap-4">
+                    <span>{p.format}</span>
+                    <span className="capitalize">{p.status}</span>
+                    <span className="capitalize">{p.current_stage || 'Not started'}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {selectedProject && (
+      {tab === 'projects' && selectedProject && (
         <PipelineView project={selectedProject} outputs={outputs} workspaceId={workspaceId}
           architecture={architecture} onUpdate={selectProject} />
       )}
 
-      {!selectedProject && architecture.engines?.length > 0 && (
+      {tab === 'projects' && !selectedProject && architecture.engines?.length > 0 && (
         <ArchitectureOverview architecture={architecture} />
       )}
 
@@ -381,6 +394,103 @@ function NewProjectModal({ workspaceId, onClose, onCreated }) {
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Create Project
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+const LIBRARY_TYPES = [
+  { type: 'style', label: 'Style Profiles', placeholder: 'e.g. Documentary, Pixar-inspired' },
+  { type: 'brand', label: 'Brands', placeholder: 'e.g. AcmeCo' },
+  { type: 'universe', label: 'Universes', placeholder: 'e.g. Neon City' },
+  { type: 'character', label: 'Characters', placeholder: 'e.g. Detective Rho' }
+]
+
+function LibraryPanel({ workspaceId }) {
+  const [type, setType] = useState('style')
+  const [items, setItems] = useState([])
+  const [name, setName] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [err, setErr] = useState(null)
+  const [inspect, setInspect] = useState(null)
+
+  const cfg = LIBRARY_TYPES.find(t => t.type === type)
+
+  useEffect(() => { fetchItems() }, [type, workspaceId])
+
+  async function fetchItems() {
+    if (!workspaceId) return
+    setLoading(true); setErr(null)
+    try {
+      const res = await fetch(`/api/library?workspace_id=${workspaceId}&type=${type}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to load')
+      setItems(data.items || [])
+    } catch (e) { setErr(e.message) }
+    setLoading(false)
+  }
+
+  async function create() {
+    if (!name.trim()) return
+    setCreating(true); setErr(null)
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, type, name })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Create failed')
+      setName(''); fetchItems()
+    } catch (e) { setErr(e.message) }
+    setCreating(false)
+  }
+
+  async function remove(id) {
+    try {
+      await fetch(`/api/library?type=${type}&id=${id}`, { method: 'DELETE' })
+      fetchItems()
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        {LIBRARY_TYPES.map(t => (
+          <button key={t.type} onClick={() => { setType(t.type); setInspect(null) }}
+            className={`px-3 py-1.5 rounded text-sm transition-colors ${type === t.type ? 'bg-slate-700 text-white' : 'bg-slate-950 text-slate-400 hover:bg-slate-800'}`}>{t.label}</button>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && create()}
+          placeholder={cfg.placeholder}
+          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+        <button onClick={create} disabled={creating || !name.trim()}
+          className="bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
+          {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Generate
+        </button>
+      </div>
+
+      {err && <p className="text-red-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" />{err}</p>}
+      {loading && <p className="text-slate-500 text-sm">Loading...</p>}
+      {!loading && !items.length && <p className="text-slate-500 text-sm">No {cfg.label.toLowerCase()} yet — generate one above.</p>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {items.map(it => (
+          <div key={it.id} className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-sm truncate">{it.name}</p>
+              <div className="flex gap-1">
+                <button onClick={() => setInspect(inspect === it.id ? null : it.id)} className="p-1 text-slate-500 hover:text-cyan-400"><FileJson className="w-3.5 h-3.5" /></button>
+                <button onClick={() => remove(it.id)} className="p-1 text-slate-500 hover:text-red-400"><XIcon className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+            {inspect === it.id && (
+              <pre className="mt-2 bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-300 overflow-auto max-h-60">{JSON.stringify(it.data, null, 2)}</pre>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
