@@ -30,11 +30,25 @@
 - [BLOCKED] `vercel --prod` deploy (operator env)
 - [BLOCKED] Rotate KIMI key (operator Moonshot account)
 
-## Backlog (Phase E)
+## Phase E — DONE (all unblocked items shipped)
 
-- Reference-image upload UI for characters
-- Multi-scene Wan video in Media Loop
-- Franchise navigator UI
-- Project stage versioning / branch-from-stage
-- External alert delivery (email/push)
-- Cost dashboard UI
+- [x] Cost/usage dashboard (`/api/usage` + Studio Usage tab)
+- [x] Franchise navigator UI (scaffold + browse + spawn episode-projects)
+- [x] Stage-output versioning (history + restore)
+- [x] Branch-from-stage (`/api/studio/branch`)
+- [x] Character ref-image / appearance fields (face lock)
+- [x] Per-scene Wan video in Media Loop (`video:true`)
+- [x] External alert dispatcher (`api/monitor/dispatch.js`; activates on env)
+
+## Remaining = BLOCKED only (external accounts/services — see STATUS.md)
+
+No further unblocked code work remains in the planned scope. Next meaningful
+progress requires the operator to execute `ACTIVATION.md` (Supabase, Runware/FAL,
+Postiz, deploy) and optionally provide an alert webhook/mailer endpoint.
+
+## Future ideas (not yet specced — open for prioritization)
+
+- Project timeline/Gantt view of stage runs
+- A/B compare two project branches side-by-side
+- Per-workspace provider key management UI
+- Webhook receiver for provider async callbacks (Runware/FAL job webhooks)

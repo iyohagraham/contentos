@@ -23,12 +23,13 @@ once external accounts are provisioned (see `ACTIVATION.md`).
 
 ## In Progress
 
-- ✅ Phase C (quality/DX) complete: test harness (17/17), smoke + check scripts,
-  `npm verify`, repo hygiene, `/api/usage`, hardened error logging, run banner.
-- ✅ Phase E (partial): Usage/cost dashboard, Franchise navigator, stage-output
-  versioning (history + restore). Remaining Phase E: branch-from-stage,
-  character ref-image upload UI, multi-scene Wan video, external alerts.
-- **Verify suite:** `npm run verify` → 109 files checked, 17/17 tests, build green.
+- ✅ **Phase C (quality/DX) complete.**
+- ✅ **Phase E complete** (all unblocked items): Usage dashboard, Franchise
+  navigator, stage versioning + restore, branch-from-stage, character face-lock
+  inputs, per-scene Wan video, pluggable alert dispatcher.
+- **No unblocked code work remains in scope.** Next progress = operator activation
+  (`ACTIVATION.md`) + optional alert endpoint. Future ideas listed in TASKS.md.
+- **Verify suite:** `npm run verify` → 111 files checked, 19/19 tests, build green.
 
 ## Done (recent)
 
