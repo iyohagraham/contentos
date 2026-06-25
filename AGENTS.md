@@ -175,7 +175,9 @@ src/
     social/                [DEAD connectors — see Tech Debt]
 supabase/
   schema.sql               8 base tables
-  schema_extension.sql     29 extension tables + model_routing_log + pgvector + 4 match functions + RLS
+  schema_extension.sql     extension tables + model_routing_log + v2.0 pipeline (media_projects,
+                           engine_outputs, style_profiles/brands/universes/characters/franchises)
+                           + pgvector + 4 match functions + RLS
 vercel.json                routes, per-path maxDuration, cron schedules
 server.js                  Express mirror for local dev
 ```
@@ -193,9 +195,10 @@ server.js                  Express mirror for local dev
   - Agents: `agent_runs`, `agent_messages`, `agent_tools`
   - Jobs: `jobs`, `job_logs`
   - Planning: `campaigns`, `campaign_posts`, `content_calendar`
-  - Analytics: `post_analytics`, `platform_snapshots`, `revenue_events`, `learning_insights`
-  - Config: `workspace_config`
-  - Router: `model_routing_log`
+   - Analytics: `post_analytics`, `platform_snapshots`, `revenue_events`, `learning_insights`
+   - Config: `workspace_config`
+   - Router: `model_routing_log`
+   - **AI Media OS (v2.0):** `media_projects` (resumable pipeline run — `status`/`current_stage`/`stages_done[]` + format + franchise/season/series/episode + style/universe/brand refs), `engine_outputs` (one row per `(project_id, engine_id)`, the contract-shaped JSON each engine emitted; `UNIQUE(project_id, engine_id)` → re-runnable stages), and reusable building blocks `style_profiles`, `brands`, `universes`, `characters`, `franchises`.
 - **Vector search RPCs:** `match_knowledge_chunks`, `match_knowledge_objects`, `match_skills`, `match_research_results` — all take `(query_embedding, match_threshold, match_count, p_workspace_id)`.
 - **RLS pattern:** `workspace_id IN (SELECT id FROM workspaces WHERE user_id = auth.uid())`. Server functions use the service key and bypass RLS.
 - **Apply order:** `schema.sql` first, then `schema_extension.sql`.
@@ -325,12 +328,14 @@ CRON_MAX_JOBS=                # default 5
 
 **v2.0 (AI Media OS) — status:** pivot complete. Engine + contract spine live, OpenMontage removed, and **all 21 engines are now implemented (live)**. The full pipeline chains end-to-end (story → storyboard → scene_plan → composition manifest), every engine self-validates its output contract, and all degrade gracefully without a text provider.
 
+**Done (v2.0 depth):** ✅ **Studio** frontend (`src/views/StudioView.jsx` — project list, New-Project modal, live pipeline from `GET /api/engines`, per-engine Run/Re-run + JSON contract inspection). ✅ **Persistence + schema** — `media_projects` (resumable runs) + `engine_outputs` + `style_profiles/brands/universes/characters/franchises` tables. ✅ **Resumable pipeline runner** — `api/studio/run.js` auto-wires each engine's inputs from prior stage outputs by contract name.
+
 **Next (depth, not breadth):**
-1. **Frontend** — a v2.0 UI surface for the engine pipeline (a "Studio" view over `GET /api/engines` + `?run=<id>`), and Storyboard/Scene-Plan editors.
-2. **Persistence + schema** — dedicated tables for style_profiles / brands / universes / characters / franchises (currently optionally folded into `workspace_config`); a `projects` table tying a run through the pipeline (resumable projects).
-3. **Wire engines into the autonomous loop** — have agents/cron drive the Knowledge→…→Learning pipeline via the engine registry.
-4. **Music provider** — wire a default (Pixabay `PIXABAY_API_KEY` or a `MUSIC_PROVIDER_URL`).
-5. **Deeper engines** — real reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
+1. **Wire engines into the autonomous loop** — have agents/cron drive the Knowledge→…→Learning pipeline via the engine registry + `engine_outputs` (a "run whole project" orchestrator + a cron that advances `running` projects).
+2. **Connect live engines into the pipeline UI** — Knowledge/Story/Media Router/Voice/Rendering/Publishing are served by existing endpoints; surface them as runnable stages in Studio (currently marked "existing").
+3. **Storyboard / Scene-Plan editors** — let the operator edit a stage's contract JSON before running the next.
+4. **Music provider** — wire a default (`PIXABAY_API_KEY` or `MUSIC_PROVIDER_URL`).
+5. **Deeper engines** — reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
 
 **v1 foundation (done, mapped onto engines):** Media Router (Runware+FFmpeg) ✅, Knowledge ✅, Skills ✅, Channel Intelligence ✅, Phase 8 Analytics ✅, 10 agents ✅, auto-learning router ✅, Autonomous Brand Mode monitoring ✅ (remaining: 30-day unattended run + external alert delivery).
 
@@ -362,6 +367,11 @@ CRON_MAX_JOBS=                # default 5
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — v2.0 Studio: resumable projects + pipeline UI (SCHEMA CHANGE)
+- **What:** Built the AI Media OS pipeline persistence + UI. **Schema (decision recorded here per the rule):** added `media_projects` (resumable run: `status`/`current_stage`/`stages_done[]`), `engine_outputs` (`UNIQUE(project_id, engine_id)` — each stage's contract JSON, re-runnable), and reusable `style_profiles`/`brands`/`universes`/`characters`/`franchises` tables (full RLS + indexes + `updated_at` triggers, matching conventions). **API:** `api/_engines/run.js` (canonical engine invoker), `api/projects.js` (CRUD), `api/studio/run.js` (resumable orchestrator — auto-wires each engine's inputs from prior `engine_outputs` by contract name, persists, advances stage). Refactored `api/engines.js` onto the invoker and **fixed a latent bug** (its `../_engines` imports were wrong → would have thrown at runtime; now `./_engines`). **Frontend:** `src/views/StudioView.jsx` + `AI Media OS > Studio` nav (lazy chunk).
+- **Why:** Make pipeline runs first-class + resumable (a core v2.0 principle: "every project is resumable"), and give the operator a UI to drive the 21-engine pipeline stage-by-stage with JSON-contract visibility.
+- **Impact:** Projects persist and resume; stages are independently re-runnable; the studio runner chains engines automatically (verified storyboard→scene_planner→composition). Schema requires re-applying `schema_extension.sql` when Supabase is live (idempotent `CREATE TABLE IF NOT EXISTS`). `node --check` + `vite build` green; StudioView code-split (~11 KB), main bundle unchanged (~387 KB).
 
 ### 2026-06-24 — All 21 engines implemented (stub → live)
 - **What:** Implemented all 10 remaining stub engines, taking the registry to **21/21 live**: Storyboard (story→shot list, AI + deterministic fallback), Scene Planner (storyboard→scene_plan, pure), Style (name→style_profile, AI + presets), Creative Director (brief→creative_direction), Brand (name→brand kit), Universe (premise→world bible), Character (name→consistency profile), Continuity (diff storyboard vs roster→issues, pure), Music (provider-routed; honest request-spec when no provider — never fabricates audio), Franchise (assemble/scaffold the Universe→…→Assets hierarchy, pure). Each validates its output against its contract and never hard-fails.
