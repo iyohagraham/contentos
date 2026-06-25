@@ -330,14 +330,13 @@ CRON_MAX_JOBS=                # default 5
 
 **Done (v2.0 depth):** ✅ **Studio** frontend (`src/views/StudioView.jsx` — project list, New-Project modal, live pipeline from `GET /api/engines`, per-engine Run/Re-run + JSON contract inspection). ✅ **Persistence + schema** — `media_projects` (resumable runs) + `engine_outputs` + `style_profiles/brands/universes/characters/franchises` tables. ✅ **Resumable pipeline runner** — `api/studio/run.js` auto-wires each engine's inputs from prior stage outputs by contract name.
 
-**Done:** ✅ **Autonomous full-pipeline orchestrator** (`api/studio/pipeline.js`) + **cron** (`api/cron/advance-projects.js`, every 5 min) — projects run themselves stage-by-stage toward complete/blocked. ✅ **Engine adapters** (`api/_engines/adapters/`) — knowledge/story/media_router/voice/rendering wrapped into the engine interface (16 engines now invocable); existing-endpoint stages are runnable in Studio. ✅ **Studio "Run full pipeline"** button.
+**Done:** ✅ **Autonomous full-pipeline orchestrator** (`api/studio/pipeline.js`) + **cron** (`api/cron/advance-projects.js`, every 5 min) — projects run themselves stage-by-stage toward complete/blocked. ✅ **Engine adapters** (`api/_engines/adapters/`) — knowledge/story/media_router/voice/rendering/**publishing** wrapped into the engine interface (**17 engines now invocable**); existing-endpoint stages runnable in Studio. ✅ **Studio "Run full pipeline"** button. ✅ **Stage-output JSON editor** (edit a stage's contract → `PATCH /api/studio/run` → re-run downstream). ✅ **Publishing engine** (Postiz) as the pipeline tail.
 
 **Next (depth, not breadth):**
-1. **Storyboard / Scene-Plan editors** — let the operator edit a stage's contract JSON before running the next stage.
-2. **Wire Media/Voice/Rendering into a full render** — once providers are funded, run scene_plan → per-scene media_router images → voice → composition → rendering to a real MP4 (the orchestrator pauses at the provider gate today).
+1. **Wire Media/Voice/Rendering into a full render** — once providers are funded, run scene_plan → per-scene media_router images → voice → composition → rendering → publishing to a real, published MP4 (the orchestrator pauses at the provider gate today; the full tail `…→rendering→publishing` is built and invocable).
+2. **Per-scene media loop** — a stage that iterates `scene_plan.scenes[]` calling `media_router` per scene + `voice` per narration, attaching urls back onto the scenes for composition.
 3. **Music provider** — wire a default (`PIXABAY_API_KEY` or `MUSIC_PROVIDER_URL`).
-4. **Publishing stage** — map the Publishing engine into the pipeline (Postiz) once a render exists.
-5. **Deeper engines** — reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
+4. **Deeper engines** — reference-image character consistency (Media Router seeds), Continuity auto-fix suggestions, Franchise persistence/navigation.
 
 **v1 foundation (done, mapped onto engines):** Media Router (Runware+FFmpeg) ✅, Knowledge ✅, Skills ✅, Channel Intelligence ✅, Phase 8 Analytics ✅, 10 agents ✅, auto-learning router ✅, Autonomous Brand Mode monitoring ✅ (remaining: 30-day unattended run + external alert delivery).
 
@@ -369,6 +368,11 @@ CRON_MAX_JOBS=                # default 5
 ## Agent Memory
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
+
+### 2026-06-24 — Publishing engine + Studio stage-output JSON editor
+- **What:** (1) **Publishing adapter** (`api/_engines/adapters/publishing.js`) — final pipeline stage: takes a RENDER_RESULT + caption + channels → publishes/schedules via Postiz (resolves all enabled channels when none given); honest `selected:false` request-spec when Postiz unconfigured. Registered invocable → **17 engines invocable**. (2) **Stage editor**: `api/studio/run.js` PATCH saves an edited stage output to `engine_outputs` (status `edited`) without re-running; StudioView's per-stage inspector is now an editable JSON textarea with "Save edits" (validates → PATCH → refresh). Edit a contract, save, re-run downstream.
+- **Why:** Complete the pipeline tail (render → **publish**) and give the operator contract-level control — fix/override any stage's JSON before continuing, the human-in-the-loop seam for the autonomous pipeline.
+- **Impact:** The full Knowledge→…→Composition→Rendering→**Publishing** chain is now built + invocable (render/publish activate when providers/Postiz are configured; orchestrator blocks at the provider gate by design). `node --check` all green; `vite build` green.
 
 ### 2026-06-24 — Autonomous full-pipeline orchestrator + cron + engine adapters
 - **What:** (1) **Engine adapters** (`api/_engines/adapters/{knowledge,story,media-router,voice,rendering}.js`) wrap existing implementations into the engine interface, registered in `api/_engines/run.js` → **16 engines now invocable** (was 11). knowledge=RAG+fact-synth; story=self-contained `textGenerateJSON` (the heavy Writing Agent stays for the job loop); media_router/voice/rendering wrap the real providers but return honest `selected:false` request-specs when no provider/key (never fabricate). (2) **Orchestrator** `api/studio/pipeline.js` runs the ordered creative pipeline for a project (knowledge→creative_director→story→storyboard→continuity→scene_planner→composition), auto-wiring each stage from prior `engine_outputs` by contract, persisting, advancing to complete/blocked/failed; pauses at a provider gate. (3) **Cron** `api/cron/advance-projects.js` (every 5 min, in `vercel.json`) advances draft/running projects one stage/tick → production runs itself. (4) StudioView "Run full pipeline" button + existing-engine stages now runnable.
