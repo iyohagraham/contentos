@@ -21,9 +21,12 @@ import { getServerSupabase, coerceWorkspaceId } from '../_db.js'
 import { runEngine, isInvocable } from '../_engines/run.js'
 import { getEngine } from '../_engines/registry.js'
 
-// The ordered creative pipeline the orchestrator drives (provider-free stages).
+// The full ordered pipeline the orchestrator drives. Creative stages run
+// provider-free; media_loop/rendering/publishing pause (blocked) at the provider
+// gate when Runware/FAL/Postiz aren't configured (they return selected:false).
 const DEFAULT_PIPELINE = [
-  'knowledge', 'creative_director', 'story', 'storyboard', 'continuity', 'scene_planner', 'composition'
+  'knowledge', 'creative_director', 'story', 'storyboard', 'continuity', 'scene_planner',
+  'media_loop', 'composition', 'rendering', 'publishing'
 ]
 
 // engine output contract → downstream input key (same map the per-stage runner uses)
@@ -31,7 +34,7 @@ const CONTRACT_TO_INPUT = {
   knowledge: 'knowledge', creative_direction: 'creative_direction', strategy: 'strategy',
   style_profile: 'style_profile', universe: 'universe', character: 'character', brand: 'brand',
   story: 'story', storyboard: 'storyboard', continuity_report: 'continuity', scene_plan: 'scene_plan',
-  composition_manifest: 'manifest'
+  composition_manifest: 'manifest', render_result: 'render_result'
 }
 
 export default async function handler(req, res) {

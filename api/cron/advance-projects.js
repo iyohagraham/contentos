@@ -13,11 +13,11 @@ import { getServerSupabase } from '../_db.js'
 import { runEngine, isInvocable } from '../_engines/run.js'
 import { getEngine } from '../_engines/registry.js'
 
-const DEFAULT_PIPELINE = ['knowledge', 'creative_director', 'story', 'storyboard', 'continuity', 'scene_planner', 'composition'].filter(isInvocable)
+const DEFAULT_PIPELINE = ['knowledge', 'creative_director', 'story', 'storyboard', 'continuity', 'scene_planner', 'media_loop', 'composition', 'rendering', 'publishing'].filter(isInvocable)
 const CONTRACT_TO_INPUT = {
   knowledge: 'knowledge', creative_direction: 'creative_direction', style_profile: 'style_profile',
   universe: 'universe', character: 'character', brand: 'brand', story: 'story',
-  storyboard: 'storyboard', continuity_report: 'continuity', scene_plan: 'scene_plan', composition_manifest: 'manifest'
+  storyboard: 'storyboard', continuity_report: 'continuity', scene_plan: 'scene_plan', composition_manifest: 'manifest', render_result: 'render_result'
 }
 
 export default async function handler(req, res) {

@@ -20,6 +20,7 @@ const MODULES = {
   storyboard: () => import('./storyboard.js'),
   continuity: () => import('./continuity.js'),
   scene_planner: () => import('./scene-planner.js'),
+  media_loop: () => import('./media-loop.js'),
   music: () => import('./music.js'),
   franchise: () => import('./franchise.js'),
   // adapters over existing implementations (knowledge/story/media/voice/rendering)

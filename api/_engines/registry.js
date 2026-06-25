@@ -74,7 +74,12 @@ export const ENGINES = [
     status: 'live', impl: 'api/_engines/scene-planner.js', inputs: ['storyboard'], outputs: ['scene_plan']
   },
   {
-    id: 'media_router', name: 'Media Router', order: 11,
+    id: 'media_loop', name: 'Media Loop', order: 11,
+    responsibility: 'Generate per-scene image + narration assets for a scene plan and attach them back.',
+    status: 'live', impl: 'api/_engines/media-loop.js', inputs: ['scene_plan'], outputs: ['scene_plan']
+  },
+  {
+    id: 'media_router', name: 'Media Router', order: 12,
     responsibility: 'Pick the best provider per media request (Runware primary); never lock to one.',
     status: 'live', impl: 'src/lib/router/* + api/media/engine.js', inputs: ['media_request'], outputs: ['media_asset']
   },
@@ -84,37 +89,37 @@ export const ENGINES = [
     status: 'live', impl: 'api/_blob.js + api/knowledge/assets.js', outputs: ['media_asset']
   },
   {
-    id: 'voice', name: 'Voice Engine', order: 12,
+    id: 'voice', name: 'Voice Engine', order: 13,
     responsibility: 'Narration, character voices, cloning, emotion, languages, dubbing (Qwen/OmniVoice).',
     status: 'live', impl: 'api/_providers/voice.js', outputs: ['media_asset']
   },
   {
-    id: 'music', name: 'Music Engine', order: 13,
+    id: 'music', name: 'Music Engine', order: 14,
     responsibility: 'Music, ambience, SFX, audio branding, theme + background music (router-provided).',
     status: 'live', impl: 'api/_engines/music.js', outputs: ['media_asset']
   },
   {
-    id: 'composition', name: 'Composition Engine (HyperFrames)', order: 14,
+    id: 'composition', name: 'Composition Engine (HyperFrames)', order: 15,
     responsibility: 'Sequence scenes into a HyperFrames timeline: animation, captions, motion, transitions.',
     status: 'live', impl: 'api/_engines/composition/hyperframes.js', inputs: ['scene_plan', 'story'], outputs: ['composition_manifest']
   },
   {
-    id: 'rendering', name: 'Rendering Engine (FFmpeg)', order: 15,
+    id: 'rendering', name: 'Rendering Engine (FFmpeg)', order: 16,
     responsibility: 'Encode/compress/export final video across all formats + watermarks + audio mix.',
     status: 'live', impl: 'api/_render/*', inputs: ['composition_manifest'], outputs: ['render_result']
   },
   {
-    id: 'publishing', name: 'Publishing Engine', order: 16,
+    id: 'publishing', name: 'Publishing Engine', order: 17,
     responsibility: 'Schedule + publish to YT/IG/TikTok/FB/LinkedIn/X with metadata, tags, descriptions.',
     status: 'live', impl: 'api/agents/publishing.js + api/postiz/*', inputs: ['render_result'], outputs: []
   },
   {
-    id: 'analytics', name: 'Analytics Engine', order: 17,
+    id: 'analytics', name: 'Analytics Engine', order: 18,
     responsibility: 'Track CTR, watch time, retention, revenue, views, shares, comments, subscribers.',
     status: 'live', impl: 'api/analytics/* + api/agents/analytics.js', outputs: []
   },
   {
-    id: 'learning', name: 'Learning Engine', order: 18,
+    id: 'learning', name: 'Learning Engine', order: 19,
     responsibility: 'Improve the platform: feed winning patterns back into strategy/story/style/direction.',
     status: 'live', impl: 'api/agents/optimization.js + api/analytics/insights.js + router auto-learn', outputs: []
   },

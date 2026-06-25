@@ -135,8 +135,8 @@ function StudioView({ workspaceId }) {
 /** The invocable engine ids that the studio runner can execute directly. */
 const RUNNABLE = new Set([
   'knowledge', 'creative_director', 'story', 'style', 'universe', 'character', 'brand',
-  'storyboard', 'continuity', 'scene_planner', 'media_router', 'voice', 'music',
-  'composition', 'rendering', 'franchise'
+  'storyboard', 'continuity', 'scene_planner', 'media_loop', 'media_router', 'voice', 'music',
+  'composition', 'rendering', 'publishing', 'franchise'
 ])
 
 function statusColor(status) {

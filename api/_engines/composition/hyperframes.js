@@ -70,16 +70,66 @@ export function createComposition(script, options = {}) {
   }
 }
 
+/** Format → pixel dims. */
+function dimsFor(format) {
+  if (format === '16:9') return { width: 1920, height: 1080 }
+  if (format === '1:1') return { width: 1080, height: 1080 }
+  return { width: 1080, height: 1920 } // 9:16 default
+}
+
+/**
+ * Build a composition from an ENRICHED scene_plan (scenes carry image_url/audio_url
+ * from the Media Loop). Each scene becomes an image layer (track 0) + caption text
+ * overlay (track 1); per-scene audio is collected into the manifest audio track.
+ */
+export function createCompositionFromScenes(plan, options = {}) {
+  const { brandName = 'ContentOS', primaryColor = '#06b6d4', fontFamily = 'Inter' } = options
+  const { width, height } = dimsFor(plan.format)
+  const scenes = Array.isArray(plan.scenes) ? plan.scenes : []
+  const clips = []
+  const audio = []
+  const captions = []
+  let t = 0
+
+  scenes.forEach((s, i) => {
+    const dur = Number(s.duration) || 4
+    if (s.image_url) {
+      clips.push({ id: `img-${i}`, type: 'image', start: t, duration: dur, track: 0, src: s.image_url,
+        motion: s.motion || 'none', transition: (s.effects || [])[0] || 'cut' })
+    }
+    const text = s.voice?.text || ''
+    if (text) {
+      clips.push({ id: `cap-${i}`, type: 'text', start: t, duration: dur, track: 1, content: text,
+        style: { fontSize: 42, fontWeight: '600', color: '#ffffff', fontFamily, textAlign: 'center' } })
+      captions.push({ text, start: t, end: t + dur })
+    }
+    if (s.audio_url) audio.push({ url: s.audio_url, start: t, duration: dur })
+    t += dur
+  })
+
+  return {
+    ...COMPOSITION_TEMPLATE,
+    name: `${brandName} - scene plan (${scenes.length} scenes)`,
+    width, height, duration: t, clips,
+    _audio: audio, _captions: captions, _sceneBacked: true,
+    _primaryColor: primaryColor
+  }
+}
+
 /** Render the composition object to HyperFrames HTML. */
 export function generateHyperFramesHTML(comp) {
-  const clipsHTML = (comp.clips || []).map((clip) => `
-    <div class="clip"
-         data-start="${clip.start}"
-         data-duration="${clip.duration}"
-         data-track-index="${clip.track || 0}"
-         data-composition-src="">
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${clip.style.fontSize}px;font-weight:${clip.style.fontWeight};color:${clip.style.color};font-family:${clip.style.fontFamily};text-align:${clip.style.textAlign};padding:20px;max-width:90%;">${clip.content}</div>
-    </div>`).join('\n')
+  const clipsHTML = (comp.clips || []).map((clip) => {
+    if (clip.type === 'image' && clip.src) {
+      return `
+    <div class="clip" data-start="${clip.start}" data-duration="${clip.duration}" data-track-index="${clip.track || 0}">
+      <img src="${clip.src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />
+    </div>`
+    }
+    return `
+    <div class="clip" data-start="${clip.start}" data-duration="${clip.duration}" data-track-index="${clip.track || 0}">
+      <div style="position:absolute;bottom:12%;left:50%;transform:translateX(-50%);font-size:${clip.style.fontSize}px;font-weight:${clip.style.fontWeight};color:${clip.style.color};font-family:${clip.style.fontFamily};text-align:${clip.style.textAlign};padding:20px;max-width:90%;text-shadow:0 2px 8px rgba(0,0,0,.6);">${clip.content}</div>
+    </div>`
+  }).join('\n')
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -105,15 +155,24 @@ export function generateHyperFramesHTML(comp) {
 
 /** Map a HyperFrames composition object → COMPOSITION_MANIFEST contract. */
 export function toManifest(comp) {
+  // For scene-backed comps, expose image scenes (so the ffmpeg renderer gets
+  // image_url + duration per scene) + the collected audio/captions.
+  const scenes = comp._sceneBacked
+    ? (comp.clips || []).filter((c) => c.type === 'image').map((c) => ({
+        id: c.id, start: c.start, duration: c.duration, image_url: c.src,
+        motion: c.motion, transition: c.transition
+      }))
+    : (comp.clips || []).map((c) => ({ id: c.id, start: c.start, duration: c.duration, type: c.type, content: c.content, style: c.style }))
+
   return {
     format: comp.width >= comp.height ? (comp.width === comp.height ? '1:1' : '16:9') : '9:16',
     width: comp.width,
     height: comp.height,
     fps: 30,
     duration: comp.duration,
-    scenes: (comp.clips || []).map((c) => ({ id: c.id, start: c.start, duration: c.duration, type: c.type, content: c.content, style: c.style })),
-    audio: {},
-    captions: []
+    scenes,
+    audio: comp._audio?.length ? { tracks: comp._audio } : {},
+    captions: comp._captions || []
   }
 }
 
@@ -129,9 +188,13 @@ export default defineEngine({
   inputs: ['story', 'scene_plan'],
   outputs: ['composition_manifest'],
   run: async (input = {}) => {
-    const script = input.script || input.story || {}
     const options = input.options || {}
-    const composition = createComposition(script, options)
+    // Prefer an enriched scene_plan (image-backed scenes from the Media Loop);
+    // fall back to the text-only script/story path.
+    const plan = input.scene_plan || (Array.isArray(input.scenes) ? { scenes: input.scenes, format: input.format } : null)
+    const composition = (plan && Array.isArray(plan.scenes) && plan.scenes.length)
+      ? createCompositionFromScenes(plan, options)
+      : createComposition(input.script || input.story || {}, options)
     const html = generateHyperFramesHTML(composition)
     return { composition, html, manifest: toManifest(composition), duration: composition.duration }
   }
