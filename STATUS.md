@@ -24,8 +24,11 @@ once external accounts are provisioned (see `ACTIVATION.md`).
 ## In Progress
 
 - ✅ Phase C (quality/DX) complete: test harness (17/17), smoke + check scripts,
-  `npm verify`, repo hygiene (dead code removed, stale docs archived), `/api/usage`,
-  hardened error logging, run-whole-project banner. Now working Phase E backlog.
+  `npm verify`, repo hygiene, `/api/usage`, hardened error logging, run banner.
+- ✅ Phase E (partial): Usage/cost dashboard, Franchise navigator, stage-output
+  versioning (history + restore). Remaining Phase E: branch-from-stage,
+  character ref-image upload UI, multi-scene Wan video, external alerts.
+- **Verify suite:** `npm run verify` → 109 files checked, 17/17 tests, build green.
 
 ## Done (recent)
 

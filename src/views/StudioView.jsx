@@ -13,7 +13,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   Zap, Plus, X as XIcon, Check, Loader2,
-  FileJson, AlertCircle, RefreshCw, Server, Play, Layers, ChevronRight
+  FileJson, AlertCircle, RefreshCw, Server, Play, Layers, ChevronRight, GitBranch
 } from 'lucide-react'
 
 function StudioView({ workspaceId }) {
@@ -253,6 +253,22 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
     setRunning(null)
   }
 
+  async function branchFrom(engineId) {
+    setRunError(null)
+    try {
+      const res = await fetch('/api/studio/branch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, project_id: project.id, at_stage: engineId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Branch failed')
+      if (data.project) onUpdate(data.project) // switch to the new branch project
+    } catch (err) {
+      setRunError(`branch: ${err.message}`)
+    }
+  }
+
   async function runFullPipeline() {
     setRunningAll(true)
     setRunError(null)
@@ -329,6 +345,12 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
                 <button onClick={() => openInspect(engine.id)}
                   className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 rounded" title="Inspect / edit output JSON">
                   <FileJson className="w-4 h-4" />
+                </button>
+              )}
+              {isDone && (
+                <button onClick={() => branchFrom(engine.id)}
+                  className="p-1.5 text-slate-500 hover:text-purple-400 hover:bg-slate-800 rounded" title="Branch a new project from this stage">
+                  <GitBranch className="w-4 h-4" />
                 </button>
               )}
               {canRun ? (

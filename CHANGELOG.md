@@ -21,6 +21,10 @@
   10). `PATCH /api/studio/run { restore_index }` reverts; StudioView shows a
   "Restore (N)" button in the stage editor. Schema: `history JSONB` column added
   (idempotent `ALTER TABLE … ADD COLUMN IF NOT EXISTS`).
+- **Branch-from-stage** — `POST /api/studio/branch` forks a new project copying
+  the source's refs + engine_outputs up to a chosen stage (resumes from the next
+  stage). StudioView: a branch (git) button on every completed stage. Pure copy,
+  no provider calls.
 - **Test harness** `tests/engines.test.mjs` — 17 assert-based tests (no framework,
   no network): registry integrity, every engine runs + self-validates its contract,
   continuity flag+fix, media-loop provider honesty + character resolution,

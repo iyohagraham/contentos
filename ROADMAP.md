@@ -30,7 +30,8 @@ unattended Brand-Mode run.
 ## Phase E — Deeper product (in progress)
 - [x] Cost dashboard from `model_routing_log` (Studio → Usage)
 - [x] Franchise navigator UI (browse Universe→…→Episode; spawn episode-projects)
-- [x] Stage-output versioning (history on re-run/edit + restore) — branch-from-stage still TODO
+- [x] Stage-output versioning (history on re-run/edit + restore)
+- [x] Branch-from-stage (fork a project + its outputs up to a chosen stage)
 - [ ] Reference-image upload UI for characters (true face lock)
 - [ ] Multi-scene video (Wan) in the Media Loop, not just stills
 - [ ] External alert delivery (email/push) for Brand Mode
