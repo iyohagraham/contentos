@@ -171,6 +171,36 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
   const [runError, setRunError] = useState(null)
   const [runningAll, setRunningAll] = useState(false)
   const [pipelineResult, setPipelineResult] = useState(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [editError, setEditError] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  function openInspect(engineId) {
+    const next = inspect === engineId ? null : engineId
+    setInspect(next)
+    setEditError(null)
+    if (next && outputs[next]) setEditDraft(JSON.stringify(outputs[next].output, null, 2))
+  }
+
+  async function saveEdit(engineId) {
+    setEditError(null)
+    let parsed
+    try { parsed = JSON.parse(editDraft) } catch (e) { setEditError(`Invalid JSON: ${e.message}`); return }
+    setSavingEdit(true)
+    try {
+      const res = await fetch('/api/studio/run', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, project_id: project.id, engine: engineId, output: parsed })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      onUpdate(project)
+    } catch (err) {
+      setEditError(err.message)
+    }
+    setSavingEdit(false)
+  }
 
   const pipeline = (architecture.pipeline || []).filter(e => (e.order || 0) > 0)
 
@@ -254,8 +284,8 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
                 {out && <p className="text-xs text-slate-500">{out.status} · {out.duration_ms ?? '–'}ms · {out.contract}</p>}
               </div>
               {out && (
-                <button onClick={() => setInspect(inspect === engine.id ? null : engine.id)}
-                  className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 rounded" title="Inspect output JSON">
+                <button onClick={() => openInspect(engine.id)}
+                  className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 rounded" title="Inspect / edit output JSON">
                   <FileJson className="w-4 h-4" />
                 </button>
               )}
@@ -275,10 +305,17 @@ function PipelineView({ project, outputs, workspaceId, architecture, onUpdate })
 
       {inspect && outputs[inspect] && (
         <div className="mt-2">
-          <p className="text-xs text-slate-500 mb-1">{inspect} output ({outputs[inspect].contract})</p>
-          <pre className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 overflow-auto max-h-80">
-            {JSON.stringify(outputs[inspect].output, null, 2)}
-          </pre>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-slate-500">{inspect} output ({outputs[inspect].contract}) — editable</p>
+            <button onClick={() => saveEdit(inspect)} disabled={savingEdit}
+              className="text-xs bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-cyan-400 px-2.5 py-1 rounded flex items-center gap-1.5">
+              {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Save edits
+            </button>
+          </div>
+          <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} spellCheck={false}
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 font-mono h-72 focus:outline-none focus:border-cyan-500" />
+          {editError && <p className="text-red-400 text-xs mt-1 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />{editError}</p>}
+          <p className="text-xs text-slate-600 mt-1">Edit this stage's contract JSON, save, then re-run downstream stages to use it.</p>
         </div>
       )}
     </div>

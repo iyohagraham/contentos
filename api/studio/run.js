@@ -36,6 +36,25 @@ const CONTRACT_TO_INPUT = {
 }
 
 export default async function handler(req, res) {
+  // PATCH — save an edited stage output (operator edits a contract before the next
+  // stage). Persists to engine_outputs without re-running the engine.
+  if (req.method === 'PATCH') {
+    const { workspace_id, project_id, engine, output } = req.body || {}
+    if (!project_id || !engine) return res.status(400).json({ error: 'project_id and engine required' })
+    if (output === undefined) return res.status(400).json({ error: 'output required' })
+    const db = getServerSupabase()
+    if (!db) return res.status(503).json({ error: 'Supabase not configured' })
+    const wsId = coerceWorkspaceId(workspace_id)
+    const meta = getEngine(engine)
+    const contract = (meta?.outputs || [])[0] || null
+    const { data, error } = await db.from('engine_outputs').upsert({
+      workspace_id: wsId, project_id, engine_id: engine, contract,
+      output, status: 'edited'
+    }, { onConflict: 'project_id,engine_id' }).select().single()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ saved: true, engine, output: data.output })
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const { workspace_id, project_id, engine, input: explicitInput } = req.body || {}

@@ -27,7 +27,8 @@ const MODULES = {
   story: () => import('./adapters/story.js'),
   media_router: () => import('./adapters/media-router.js'),
   voice: () => import('./adapters/voice.js'),
-  rendering: () => import('./adapters/rendering.js')
+  rendering: () => import('./adapters/rendering.js'),
+  publishing: () => import('./adapters/publishing.js')
 }
 
 /** @returns {string[]} engine ids invokable via this module. */
