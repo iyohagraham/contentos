@@ -369,6 +369,11 @@ CRON_MAX_JOBS=                # default 5
 
 > Append a new entry here whenever you make a major architectural decision or significant change. Newest first. Format: **What / Why / Date / Impact**.
 
+### 2026-06-24 — Library: reusable building blocks (Style/Brand/Universe/Character)
+- **What:** `api/library.js` — one endpoint over the 4 asset tables (`style_profiles`/`brands`/`universes`/`characters`). POST generates the block via its engine (AI-assisted + contract-validated) and persists the contract JSON; GET lists; DELETE removes. StudioView gained **Projects | Library** tabs; the Library panel picks a type, names it, "Generate" (runs the engine + saves), and lists/inspects-JSON/deletes items.
+- **Why:** The reusable building blocks (style profiles, brand kits, universes, recurring characters) need a UI + persistence so projects can reference them — esp. characters for cross-episode consistency (feeds the Media Loop roster).
+- **Impact:** Operators can now build + manage a library of style/brand/universe/character assets from the UI; saved characters auto-feed the Media Loop's consistency roster (orchestrator/cron load `characters` rows). `node --check` + `vite build` green.
+
 ### 2026-06-24 — Continuity auto-fix wired into pipeline + Franchise persistence
 - **What:** (1) The orchestrator (`api/studio/pipeline.js`) and cron (`api/cron/advance-projects.js`) now run **Continuity with `apply:true`**; when it returns a corrected `fixed` storyboard, that replaces the storyboard the downstream Scene Planner uses (cron persists it back into the `storyboard` engine_output so the next tick picks it up) — wardrobe drift self-corrects mid-pipeline. (2) **Franchise persistence** — `api/franchises.js` (CRUD) bridges the pure Franchise engine to the `franchises` table: POST runs the engine (assemble flat nodes or plan a Season→Series→Episode scaffold) and SAVES the hierarchy; GET lists/loads; DELETE removes. Media ecosystems now persist across sessions.
 - **Why:** Close the loop on continuity (detect → fix → **apply in-pipeline**) and make the Franchise hierarchy durable so projects can reference franchise/season/series/episode.
