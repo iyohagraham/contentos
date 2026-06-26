@@ -1,6 +1,6 @@
 # AGENTS.md — ContentOS Single Source of Truth
 
-> **This file is the canonical handoff doc for any coding agent** (Claude Code, OpenCode, Goose, Gemini CLI, Codex, etc.). Read it first. It supersedes the older, partly-stale docs now in `docs/archive/` (`CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md`) — trust this file and the codebase over those. Live status is in **STATUS.md**; the work queue in **TASKS.md**; go-live in **ACTIVATION.md**.
+> **This file is the canonical handoff doc for any coding agent** (Claude Code, OpenCode, Goose, Gemini CLI, Codex, etc.). Read it first. It supersedes the older, partly-stale docs now in `docs/archive/` (`CONTENTOS_STATUS/TASKS/CLAUDE_HANDOFF.md`) — trust this file and the codebase over those. New here? Start with **HANDOFF.md** (one-page orientation). Live status is in **STATUS.md**; the work queue in **TASKS.md**; go-live in **ACTIVATION.md**.
 >
 > **Maintenance rule:** whenever you make a significant code change or architectural decision, update the relevant sections here AND append an entry to **Agent Memory**. Treat AGENTS.md as part of "done."
 >
