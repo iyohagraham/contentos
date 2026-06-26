@@ -16,3 +16,6 @@ coverage
 cypress/videos
 cypress/screenshots
 .env*
+
+# stray embedded repo (not part of ContentOS)
+free-claude-code/
